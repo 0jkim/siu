@@ -196,6 +196,22 @@ NrMacSchedulerNs3::GetTypeId (void)
                    MakeBooleanAccessor (&NrMacSchedulerNs3::EnableHarqReTx,
                                         &NrMacSchedulerNs3::IsHarqReTxEnable),
                                         MakeBooleanChecker ())
+
+    // Configured Grant
+
+    .AddAttribute ("DlDataSymbolsFpattern",
+                   "Number of symbols allocated for DL DATA for a flexible "
+                   "(with pattern) slot",
+                   UintegerValue (0),
+                   MakeUintegerAccessor (&NrMacSchedulerNs3::SetDlDataSymsF,
+                                         &NrMacSchedulerNs3::GetDlDataSymsF),
+                   MakeUintegerChecker<uint8_t> ())
+    .AddAttribute ("CG",
+                   "Activate configured grant scheduling for UL periodic transmissions",
+                   BooleanValue (true),
+                   MakeBooleanAccessor (&NrMacSchedulerNs3::SetCG,
+                                        &NrMacSchedulerNs3::GetCG),
+                   MakeBooleanChecker ()
   ;
 
   return tid;
@@ -405,6 +421,19 @@ NrMacSchedulerNs3::IsSrsInFSlots () const
 {
   return m_enableSrsInFSlots;
 }
+
+void
+NrMacSchedulerNs3::EnableHarqReTx (bool enableFlag)
+{
+  m_enableHarqReTx = enableFlag;
+}
+
+bool
+NrMacSchedulerNs3::IsHarqReTxEnable () const
+{
+  return m_enableHarqReTx;
+}
+
 
 void
 NrMacSchedulerNs3::EnableHarqReTx (bool enableFlag)
@@ -1621,6 +1650,8 @@ NrMacSchedulerNs3::DoScheduleUlData (PointInFTPlane *spoint, uint32_t symAvail,
   NS_ASSERT (symAvail > 0 && activeUl.size () > 0);
   NS_ASSERT (spoint->m_rbg == 0);
 
+  // This function assigns the number of RBs needed by each UE according to the
+  // scheduler that has been chosen (FlexTDMA and FlexOFDMA are programmed inside this function).
   BeamSymbolMap symPerBeam = AssignULRBG (symAvail, activeUl);
   uint8_t usedSym = 0;
   GetFirst GetBeam;
@@ -1865,7 +1896,7 @@ NrMacSchedulerNs3::ScheduleDl (const NrMacSchedSapProvider::SchedDlTriggerReqPar
                    &NrMacSchedulerUeInfo::GetDlHarqVector, "DL");
 
   DoScheduleDl (dlHarqFeedback, activeDlHarq, &activeDlUe, params.m_snfSf,
-                ulAllocations, &dlSlot.m_slotAllocInfo);
+                ulAllocations, &dlSlot.m_slotAllocInfo, params.m_slotType);
 
   // if the number of allocated symbols is greater than GetUlCtrlSymbols (), then don't delete
   // the allocation, as it will be removed when the CQI will be processed.
@@ -1991,19 +2022,43 @@ NrMacSchedulerNs3::DoScheduleUl (const std::vector <UlHarqInfo> &ulHarqFeedback,
   NS_ASSERT (allocInfo->m_varTtiAllocInfo.size () == 1); // Just the UL CTRL
 
   uint8_t dataSymPerSlot = m_macSchedSapUser->GetSymbolsPerSlot () - m_ulCtrlSymbols;
-  if (type == LteNrTddSlotType::F)
+
+  /* if (type == LteNrTddSlotType::F)
     { // if it's a type F, we have to consider DL CTRL symbols, otherwise, don't
       dataSymPerSlot -= m_dlCtrlSymbols;
+    }*/
+
+  // Start the assignation from the first available data symbol according to m_dlDataSymbolsF
+  uint8_t ulSymAvail = dataSymPerSlot;
+  uint8_t StartSym;
+
+  if (type == LteNrTddSlotType::F)
+    { // if it's a type F, we have to consider DL CTRL symbols, otherwise, don't
+      dataSymPerSlot -= (m_dlCtrlSymbols + m_dlDataSymbolsF);
+      ulSymAvail = dataSymPerSlot;
+      StartSym = m_macSchedSapUser->GetSymbolsPerSlot () - m_ulCtrlSymbols - dataSymPerSlot ;
+
     }
+  else if(type == LteNrTddSlotType::UL)
+    {
+      StartSym = 0;
+    }
+  else
+   {
+      // It should call to the UL DCI that goes from the last sym to the first sym (TODO)
+     StartSym = m_macSchedSapUser->GetSymbolsPerSlot () - m_ulCtrlSymbols;
+  }
+
+  PointInFTPlane ulAssignationStartPoint (0, StartSym);
 
   ActiveHarqMap activeUlHarq;
   ComputeActiveHarq (&activeUlHarq, ulHarqFeedback);
 
   // Start the assignation from the last available data symbol, and like a shrimp
   // go backward.
-  uint8_t lastSym = m_macSchedSapUser->GetSymbolsPerSlot () - m_ulCtrlSymbols;
+  /*uint8_t lastSym = m_macSchedSapUser->GetSymbolsPerSlot () - m_ulCtrlSymbols;
   PointInFTPlane ulAssignationStartPoint (0, lastSym);
-  uint8_t ulSymAvail = dataSymPerSlot;
+  uint8_t ulSymAvail = dataSymPerSlot;*/
 
   // Create the UL allocation map entry
   m_ulAllocationMap.emplace (ulSfn.GetEncoding (), SlotElem (0));
@@ -2036,12 +2091,19 @@ NrMacSchedulerNs3::DoScheduleUl (const std::vector <UlHarqInfo> &ulHarqFeedback,
 
   NS_ASSERT (ulAssignationStartPoint.m_rbg == 0);
 
-  if (ulSymAvail > 0 && m_srList.size () > 0)
-    {
-      DoScheduleUlSr (&ulAssignationStartPoint, m_srList);
-      m_srList.clear ();
-    }
-
+ if (ulSymAvail > 0 && m_srList.size () > 0)
+  {
+   if (m_cgScheduling)
+     {
+       // Store the corresponding TBS according to the CGR for each UE in a LCG
+       DoScheduleUlresources_configuredGrant (&ulAssignationStartPoint, m_srList);
+     }
+    else
+     {
+       DoScheduleUlSr (&ulAssignationStartPoint, m_srList);
+      }
+     m_srList.clear ();
+   }
   ActiveUeMap activeUlUe;
   ComputeActiveUe (&activeUlUe, &NrMacSchedulerUeInfo::GetUlLCG,
                    &NrMacSchedulerUeInfo::GetUlHarqVector, "UL");
@@ -2073,7 +2135,7 @@ NrMacSchedulerNs3::DoScheduleUl (const std::vector <UlHarqInfo> &ulHarqFeedback,
   if (ulSymAvail > 0 && activeUlUe.size () > 0)
     {
       uint8_t usedUl = DoScheduleUlData (&ulAssignationStartPoint, ulSymAvail,
-                                         activeUlUe, allocInfo);
+                                             activeUlUe, allocInfo);
       NS_LOG_INFO ("For the slot " << ulSfn << " reserved " <<
                    static_cast<uint32_t> (usedUl) << " symbols for UL data tx");
       ulSymAvail -= usedUl;
@@ -2256,14 +2318,33 @@ NrMacSchedulerNs3::DoScheduleDl (const std::vector <DlHarqInfo> &dlHarqFeedback,
                                      ActiveUeMap *activeDlUe,
                                      const SfnSf &dlSfnSf,
                                      const SlotElem &ulAllocations,
-                                     SlotAllocInfo *allocInfo)
+                                     SlotAllocInfo *allocInfo,
+                                     LteNrTddSlotType type)
 {
   NS_LOG_INFO (this);
   NS_ASSERT (activeDlUe != nullptr);
 
   uint8_t dataSymPerSlot = m_macSchedSapUser->GetSymbolsPerSlot () - m_dlCtrlSymbols;
+  uint8_t dlSymAvail;
 
-  uint8_t dlSymAvail = dataSymPerSlot - ulAllocations.m_totUlSym;
+  // Calculate available DL symbols based on the TDD pattern selected in main
+  if (type == LteNrTddSlotType::F)
+    {
+      if (m_dlDataSymbolsF == 0)
+        {
+          dlSymAvail = m_macSchedSapUser->GetSymbolsPerSlot () - m_dlCtrlSymbols;
+        }
+      else
+        {
+          dlSymAvail = m_dlDataSymbolsF;
+        }
+    }
+  else
+    {
+      dlSymAvail = m_macSchedSapUser->GetSymbolsPerSlot () - m_dlCtrlSymbols;
+    }
+
+ // uint8_t dlSymAvail = dataSymPerSlot - ulAllocations.m_totUlSym;
   PointInFTPlane dlAssignationStartPoint (0, m_dlCtrlSymbols);
 
   NS_LOG_DEBUG ("Scheduling DL for slot " << dlSfnSf <<
@@ -2473,8 +2554,7 @@ NrMacSchedulerNs3::DoSchedUlTriggerReq (const NrMacSchedSapProvider::SchedUlTrig
       ProcessHARQFeedbacks (&ulHarqFeedback, NrMacSchedulerUeInfo::GetUlHarqVector,
                             "UL");
     }
-
-  ScheduleUl (params, ulHarqFeedback);
+      ScheduleUl (params, ulHarqFeedback);
 }
 
 /**
@@ -2500,6 +2580,86 @@ NrMacSchedulerNs3::DoSchedUlSrInfoReq (const NrMacSchedSapProvider::SchedUlSrInf
         }
     }
   NS_ASSERT (m_srList.size () >= params.m_srList.size ());
+}
+
+//Configured Grant
+
+void
+NrMacSchedulerNs3::DoScheduleUlresources_configuredGrant (PointInFTPlane *spoint, const std::list<uint16_t> &rntiList) const
+{
+  NS_LOG_FUNCTION (this);
+  NS_ASSERT (spoint->m_rbg == 0);
+
+  auto bufSizeUeIt = m_cgrBufSize.begin ();
+  uint32_t bufSize ;
+  uint32_t bufWithOH;
+
+  for (const auto & v : rntiList)
+    {
+      for (auto & ulLcg : NrMacSchedulerUeInfo::GetUlLCG (m_ueMap.at (v)))
+        {
+          std::vector<uint8_t> lcid = ulLcg.second -> GetLCId();
+          if (lcid[0] == m_lcid_configuredGrant)
+            {
+              while (bufSizeUeIt != m_cgrBufSize.end ())
+                {
+                  bufWithOH = *bufSizeUeIt + uint32_t (8 + 2); // 2 overheadRLC and 8 BSR+Overhead
+                  uint8_t bsrId = NrMacShortBsrCe::FromBytesToLevel(bufWithOH);
+                  bufSize = NrMacShortBsrCe::FromLevelToBytes (bsrId);
+
+                  NS_LOG_DEBUG ("Assigning " << bufSize << " bytes to UE " << v << " because of a CGR");
+                  ulLcg.second->UpdateInfo(bufSize);
+                  break;
+               }
+            }
+        }
+      bufSizeUeIt++;
+     }
+}
+
+void
+NrMacSchedulerNs3::SetDlDataSymsF (uint8_t v)
+{
+  m_dlDataSymbolsF = v;
+}
+
+uint8_t
+NrMacSchedulerNs3::GetDlDataSymsF () const
+{
+  return m_dlDataSymbolsF;
+}
+
+void
+NrMacSchedulerNs3::DoSchedUlCgrInfoReq (const NrMacSchedSapProvider::SchedUlCgrInfoReqParameters &params)
+{
+  NS_LOG_FUNCTION (this);
+
+  // Merge RNTI in our current list
+  for (const auto & ue : params.m_srList)
+    {
+      NS_LOG_INFO ("UE " << ue << " asked for a CGR ");
+
+      auto it = std::find (m_srList.begin(), m_srList.end(), ue);
+      if (it == m_srList.end())
+        {
+          m_srList.push_back (ue);
+        }
+    }
+  m_cgrBufSize = params.bufCgr;
+  m_lcid_configuredGrant = params.lcid;
+  NS_ASSERT (m_srList.size () >= params.m_srList.size ());
+}
+
+bool
+NrMacSchedulerNs3::GetCG () const
+{
+  return m_cgScheduling;
+}
+
+void
+NrMacSchedulerNs3::SetCG (bool cg_sch)
+{
+  m_cgScheduling = cg_sch;
 }
 
 } // namespace ns3

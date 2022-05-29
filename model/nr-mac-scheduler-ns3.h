@@ -1,4 +1,4 @@
-﻿/* -*-  Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
+/* -*-  Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
 /*
  *   Copyright (c) 2019 Centre Tecnologic de Telecomunicacions de Catalunya (CTTC)
  *
@@ -534,6 +534,20 @@ public:
    */
   bool IsHarqReTxEnable () const;
 
+  //Configured Grant
+
+  typedef std::pair<uint16_t, uint32_t> SchedUeMap;
+  typedef std::pair <uint8_t, std::vector<SchedUeMap>> SchedUeMapFirstSym;
+
+  void SetDlDataSymsF (uint8_t v);
+  uint8_t GetDlDataSymsF () const;
+
+  virtual void
+  DoSchedUlCgrInfoReq (const NrMacSchedSapProvider::SchedUlCgrInfoReqParameters &params) override;
+
+  void SetCG (bool CGSch);
+  bool GetCG () const;
+
 protected:
   /**
    * \brief Create an UE representation for the scheduler.
@@ -853,7 +867,8 @@ private:
   void DoScheduleUlSr (PointInFTPlane *spoint, const std::list<uint16_t> &rntiList) const;
   uint8_t DoScheduleDl (const std::vector <DlHarqInfo> &dlHarqFeedback, const ActiveHarqMap &activeDlHarq,
                         ActiveUeMap *activeDlUe, const SfnSf &dlSfnSf,
-                        const SlotElem &ulAllocations, SlotAllocInfo *allocInfo);
+                        const SlotElem &ulAllocations, SlotAllocInfo *allocInfo,
+                        LteNrTddSlotType type);
   uint8_t DoScheduleUl (const std::vector <UlHarqInfo> &ulHarqFeedback, const SfnSf &ulSfn,
                         SlotAllocInfo *allocInfo, LteNrTddSlotType type);
   uint8_t DoScheduleSrs (PointInFTPlane *spoint, SlotAllocInfo *allocInfo);
@@ -861,6 +876,9 @@ private:
   static const unsigned m_macHdrSize = 0;  //!< Mac Header size
   static const uint32_t m_subHdrSize = 4;  //!< Sub Header size (?)
   static const unsigned m_rlcHdrSize = 3;  //!< RLC Header size
+
+  //Configured Grant
+  void DoScheduleUlresources_configuredGrant (PointInFTPlane *spoint, const std::list<uint16_t> &rntiList) const;
 
 protected:
   /**
@@ -924,6 +942,25 @@ private:
   friend NrSchedGeneralTestCase;
 
   bool m_enableHarqReTx  {true}; //!< Flag to enable or disable HARQ ReTx (attribute)
+ 
+ //Configured Grant
+
+  std::list<uint16_t> m_configuredGrant;
+  std::list<uint16_t> m_configuredGrantAux;
+  SfnSf ulSfnConfigurateGrant = SfnSf (0, 0, 0, 1);
+  uint32_t numberOfSubframes = 0;
+  uint32_t numberOfSlotsInASubframe = 2; //mu = 0, 1 slot; mu = 1, 2 slots; mu = 2, 4 slots; mu = 3, 8 slots; mu = 4, 16 slots
+  uint32_t numberOfSlotForConfiguration;
+  uint32_t configuredGrantPeriodicity_numberOfSlot;
+  bool configuredGrantOn = false;
+
+  uint8_t m_dlDataSymbolsF {0}; //!< DL Data symbols (attribute)
+
+  std::list<uint32_t> m_cgrBufSize;  //!< List of RNTI of UEs that asked for a SR
+  uint8_t m_lcid_configuredGrant;
+
+  bool m_cgScheduling;
+
 };
 
 } //namespace ns3
