@@ -100,10 +100,11 @@ NrMacSchedulerLCG::AssignedData (uint8_t lcId, uint32_t size, std::string type)
             }
           else
             {
-              m_totalSize -= std::min (m_lcMap.at (lcId)->m_rlcTransmissionQueueSize, size - rlcOverhead);
+              m_totalSize -= std::min (m_lcMap.at (lcId)->m_rlcTransmissionQueueSize, size - rlcOverhead - 5 - 3 );
             }
         }
-      if (size - rlcOverhead >= m_lcMap.at (lcId)->m_rlcTransmissionQueueSize)
+      //if (size - rlcOverhead >= m_lcMap.at (lcId)->m_rlcTransmissionQueueSize)
+      if (size - rlcOverhead - 3 - 5  >= m_lcMap.at (lcId)->m_rlcTransmissionQueueSize)
         {
           // we can transmit everything from the queue, reset it
           m_lcMap.at (lcId)->m_rlcTransmissionQueueSize = 0;
@@ -111,7 +112,10 @@ NrMacSchedulerLCG::AssignedData (uint8_t lcId, uint32_t size, std::string type)
       else
         {
           // not enough to empty all queue, but send what you can, this is normal situation to happen
-          m_lcMap.at (lcId)->m_rlcTransmissionQueueSize -= size - rlcOverhead;
+          //m_lcMap.at (lcId)->m_rlcTransmissionQueueSize -= size - rlcOverhead;
+          // SHORT_BSR, which is 5 bytes.
+          // We have 3 bytes of overhead for each subPDU (3*LCG)
+          m_lcMap.at (lcId)->m_rlcTransmissionQueueSize -= size - rlcOverhead - 5 - 3 ;
         }
     }
   else
