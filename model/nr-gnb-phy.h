@@ -405,6 +405,19 @@ public:
    * TODO change to private and add documentation
    */
   void ChangeToQuasiOmniBeamformingVector ();
+  
+  //Configured Grant
+  void SetCG (bool CGSch);
+  bool GetCG () const;
+
+  void SetConfigurationTime (uint8_t configurationTime);
+  uint8_t GetConfigurationTime () const;
+
+  void SetCGPeriod (uint8_t CGPeriod);
+  uint8_t GetCGPeriod () const;
+
+  void SetNUEcg (uint8_t CGPeriod);
+  uint8_t GetNUEcg () const;
 
 protected:
   /**
@@ -779,6 +792,15 @@ private:
 
   SfnSf m_currentSlot;      //!< The current slot number
   bool m_isPrimary {false}; //!< Is this PHY a primary phy?
+
+  //Configured Grant
+  bool m_firstPacket_configuredGrant {true}; //! SR from configuration period (CG)
+
+
+  bool m_cgScheduling = true;
+  uint8_t m_configurationTime = 0;
+  uint8_t configurateGrant_periodicity = 0;
+
 };
 
 }

@@ -68,6 +68,7 @@ public:
     DL_HARQ,      //!< DL HARQ feedback
     SR,           //!< Scheduling Request: asking for space
     SRS,          //!< SRS
+    CGR,          //!<CGR
   };
 
   /**
@@ -541,6 +542,45 @@ public:
    * \brief ~NrDlHarqFeedbackMessage
    */
   virtual ~NrSrsMessage (void) = default;
+};
+
+// Configured Grant
+class NrCGRMessage : public NrControlMessage
+{
+public:
+  /**
+   * \brief NrSRMessage constructor
+   */
+  NrCGRMessage (void);
+  /**
+   * \brief ~NrSRMessage
+   */
+  virtual ~NrCGRMessage (void);
+
+  /**
+   * \brief Set the RNTI to which this message is intended
+   * \param rnti RNTI
+   */
+  void SetRNTI (uint16_t rnti);
+
+  void SetBufSize (uint32_t bufSr);
+
+  void SetLCID (uint8_t lcid);
+
+  /**
+   * \brief Get the RNTI of this message
+   * \return RNTI
+   */
+  uint16_t GetRNTI (void) const;
+
+  uint32_t GetBufSize (void) const;
+
+  uint8_t GetLCID (void) const;
+
+private:
+  uint16_t m_rnti {0}; //!< RNTI
+  uint32_t m_bufSr {0};
+  uint8_t m_lcid {0};
 };
 
 }

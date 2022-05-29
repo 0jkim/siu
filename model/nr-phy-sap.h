@@ -301,6 +301,9 @@ public:
    * \return the number of the configured HARQ processes.
    */
   virtual uint8_t GetNumHarqProcess () const = 0;
+
+  //Configured Grant  
+  virtual bool SlotIndication_configuredGrant (SfnSf s) = 0;
 };
 
 }

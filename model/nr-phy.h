@@ -584,6 +584,9 @@ protected:
 
   std::vector<LteNrTddSlotType> m_tddPattern = { F, F, F, F, F, F, F, F, F, F}; //!< Pattern
 
+  //Configured Grant
+   std::list <Ptr<NrControlMessage>> m_ctrlMsgs_TX;
+
 private:
   std::list<SlotAllocInfo> m_slotAllocInfo; //!< slot allocation info list
   std::vector<std::list<Ptr<NrControlMessage>>> m_controlMessageQueue; //!< CTRL message queue

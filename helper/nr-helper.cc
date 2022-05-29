@@ -584,6 +584,8 @@ NrHelper::InstallSingleUeDevice (const Ptr<Node> &n,
 
   std::map<uint8_t, Ptr<BandwidthPartUe> > ueCcMap;
 
+  Ptr<NrUePhy> phy;
+
   // Create, for each ue, its bandwidth parts
   for (uint32_t bwpId = 0; bwpId < allBwps.size (); ++bwpId)
     {
@@ -598,14 +600,15 @@ NrHelper::InstallSingleUeDevice (const Ptr<Node> &n,
       auto mac = CreateUeMac ();
       cc->SetMac (mac);
 
-      auto phy = CreateUePhy (n, allBwps[bwpId].get(), dev, std::bind (&NrUeNetDevice::RouteIngoingCtrlMsgs, dev,
-                                         std::placeholders::_1, bwpId), numberOfStreams);
-
+      phy = CreateUePhy (n, allBwps[bwpId].get(),
+                         dev, std::bind (&NrUeNetDevice::RouteIngoingCtrlMsgs, dev,
+                         std::placeholders::_1, bwpId), numberOfStreams);
+      
       if (m_harqEnabled)
         {
           phy->SetPhyDlHarqFeedbackCallback (MakeCallback (&NrUeNetDevice::EnqueueDlHarqFeedback, dev));
         }
-
+        
       phy->SetBwpId (bwpId);
       cc->SetPhy (phy);
 
@@ -812,6 +815,8 @@ NrHelper::InstallSingleGnbDevice (const Ptr<Node> &n,
 
   Ptr<NrGnbNetDevice> dev = m_gnbNetDeviceFactory.Create<NrGnbNetDevice> ();
 
+  Ptr<NrGnbPhy> phy;
+
   NS_LOG_DEBUG ("Creating gNB, cellId = " << m_cellIdCounter);
   uint16_t cellId = m_cellIdCounter++;
 
@@ -834,9 +839,10 @@ NrHelper::InstallSingleGnbDevice (const Ptr<Node> &n,
       cc->SetUlEarfcn (0); // Argh... handover not working
       cc->SetCellId (m_cellIdCounter++);
 
-      auto phy = CreateGnbPhy (n, allBwps[bwpId].get(), dev,
-                               std::bind (&NrGnbNetDevice::RouteIngoingCtrlMsgs,
-                                          dev, std::placeholders::_1, bwpId), numberOfStreams);
+      phy = CreateGnbPhy (n, allBwps[bwpId].get(), dev,
+                          std::bind (&NrGnbNetDevice::RouteIngoingCtrlMsgs,
+                          dev, std::placeholders::_1, bwpId), numberOfStreams);
+
       phy->SetBwpId (bwpId);
       cc->SetPhy (phy);
 

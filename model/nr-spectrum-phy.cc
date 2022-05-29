@@ -884,11 +884,13 @@ NrSpectrumPhy::StartRxData (const Ptr<NrSpectrumSignalParametersDataFrame>& para
         else
           {
             NS_ASSERT (m_state == RX_DATA);
+
             // sanity check: if there are multiple RX events, they
             // should occur at the same time and have the same
             // duration, otherwise the interference calculation
             // won't be correct
             NS_ASSERT ((m_firstRxStart == Simulator::Now ()) && (m_firstRxDuration == params->duration));
+
           }
 
         ChangeState (RX_DATA, params->duration);

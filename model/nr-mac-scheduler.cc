@@ -116,7 +116,13 @@ public:
   virtual uint8_t GetUlCtrlSyms () const override
   {
     return m_scheduler->GetUlCtrlSyms ();
-  };
+  }
+
+  //Configured Grant
+  virtual void SchedUlCgrInfoReq (const SchedUlCgrInfoReqParameters &params) override
+  {
+    m_scheduler->DoSchedUlCgrInfoReq (params);
+  }
 private:
   NrMacScheduler* m_scheduler {nullptr};
 };

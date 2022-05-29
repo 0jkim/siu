@@ -226,5 +226,22 @@ BwpManagerGnb::DoUlReceiveSr(uint16_t rnti, uint8_t componentCarrierId)
   m_ccmMacSapProviderMap.find (componentCarrierId)->second->ReportSrToScheduler (rnti);
 }
 
+//Configured Grant
+
+void
+BwpManagerGnb::DoUlReceiveCgr(uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid)
+{
+  NS_LOG_FUNCTION (this);
+  NS_ASSERT (m_algorithm != nullptr);
+
+  NS_LOG_DEBUG ("Routing CGR for UE " << rnti << " to source CC id " <<
+                static_cast<uint32_t> (componentCarrierId) << "with buffer size" << bufSize);
+
+  auto it = m_ccmMacSapProviderMap.find (componentCarrierId);
+  NS_ABORT_IF (it == m_ccmMacSapProviderMap.end ());
+
+  //m_ccmMacSapProviderMap.find (componentCarrierId)->second->ReportSrToScheduler (rnti);
+  m_ccmMacSapProviderMap.find (componentCarrierId)->second->ReportCgrToScheduler (rnti, bufSize, lcid);
+}
 
 } // end of namespace ns3

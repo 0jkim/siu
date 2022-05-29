@@ -217,6 +217,7 @@ protected:
   virtual void
   BeforeUlSched (const UePtrAndBufferReq &ue,
                  const FTResources &assignableInIteration) const = 0;
+
 private:
   /**
    * \brief Retrieve the UE vector from an ActiveUeMap
@@ -257,6 +258,8 @@ private:
                                                  std::vector<uint32_t> tbs, DciInfoElementTdma::DciFormat fmt,
                                                  std::vector<uint8_t> mcs, std::vector<uint8_t> ndi,
                                                  std::vector<uint8_t> rv, uint8_t numSym) const;
+
+
 };
 
 } // namespace ns3

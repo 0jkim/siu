@@ -365,5 +365,53 @@ operator<< (std::ostream &os, const LteNrTddSlotType &item)
   return os;
 }
 
+//Configured Grant
+NrCGRMessage::NrCGRMessage ()
+{
+  NS_LOG_INFO (this);
+  SetMessageType (NrControlMessage::CGR);
+}
+
+NrCGRMessage::~NrCGRMessage ()
+{
+  NS_LOG_INFO (this);
+}
+
+void
+NrCGRMessage::SetRNTI (uint16_t rnti)
+{
+  m_rnti = rnti;
+}
+
+uint16_t
+NrCGRMessage::GetRNTI () const
+{
+  return m_rnti;
+}
+
+void
+NrCGRMessage::SetBufSize (uint32_t bufSr)
+{
+  m_bufSr = bufSr;
+}
+
+uint32_t
+NrCGRMessage::GetBufSize () const
+{
+  return m_bufSr;
+}
+
+void
+NrCGRMessage::SetLCID (uint8_t lcid)
+{
+  m_lcid = lcid;
+}
+
+uint8_t
+NrCGRMessage::GetLCID () const
+{
+  return m_lcid;
+}
+
 }
 

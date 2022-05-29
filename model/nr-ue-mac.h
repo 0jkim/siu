@@ -22,6 +22,8 @@
 
 #include "nr-phy-mac-common.h"
 #include "nr-mac-pdu-info.h"
+#include "nr-ue-phy.h"
+
 
 #include <ns3/lte-ue-cmac-sap.h>
 #include <ns3/lte-ccm-mac-sap.h>
@@ -216,6 +218,17 @@ public:
    */
   int64_t AssignStreams (int64_t stream);
 
+  // Configured Grant
+  void SetCG (bool CGSch);
+  bool GetCG () const;
+  bool m_cgScheduling = true;
+
+  void SetConfigurationTime (uint8_t configurationTime);
+  uint8_t GetConfigurationTime () const;
+
+  void SetCGPeriod (uint8_t CGPeriod);
+  uint8_t GetCGPeriod () const;
+
 protected:
   /**
    * \brief DoDispose method inherited from Object
@@ -382,6 +395,41 @@ private:
    */
   void SendTxData (uint32_t usefulTbs, uint32_t activeTx);
 
+  //Configured Grant
+  /**
+   * \brief We begin a new slot
+   * \param sfn the new slot
+   * \param totalSymConfGrant the number of total allocated symbols
+   * \return Send to the PHY (true) if it is transmission phase and a
+   * new packet is generated in the UE.
+   */
+  bool DoSlotIndication_configuredGrant (const SfnSf &sfn);
+  /**
+   * \brief Called by CCM
+   * \param params the BSR params
+   *
+   * The CCM is calling this function for all the MAC of the UE.
+   *
+   * When a packet is generated in the UE, the m_cgState changed:
+   *    - Configuration phase: Send SR signal.
+   *    - Transmission phase: Prepare packets considering the CG-DCI resources.
+   *
+   * \see DoSlotIndication_configuredGrant
+   */
+  void DoReportBufferStatus_configuredGrant (LteMacSapProvider::ReportBufferStatusParameters params);
+  /**
+   * \brief Process the received Packet
+   * \ brief This method is called by DoSlotIndication_configuredGrant and it
+   * \brief is used in transmission phase.
+   *
+   * The method will call SendNewData() (it has to consider all the CG slots),
+   * that will take care of sending data out. After sending new data,
+   * the method is allowed to enqueue a BSR if there are still bytes in the queue.
+   *
+   */
+  void ProcessULPacket ();
+  void SendCGR () const;
+
 private:
 
   LteUeCmacSapUser* m_cmacSapUser {nullptr};
@@ -468,6 +516,60 @@ private:
    * pointer to message in order to get the msg type
    */
   TracedCallback<SfnSf, uint16_t, uint16_t, uint8_t, Ptr<const NrControlMessage>> m_macTxedCtrlMsgsTrace;
+
+  //Configured Grant
+  /**
+   * \brief States for the Configured Grant (CG) mechanism.
+   *
+   * The CG mechanism is based on a four states state machine.
+   *
+   * The machine is starting from the INACTIVE_CG state (configuration phase).
+   * When the RLC notifies to MAC that there are new bytes in its queue
+   * (DoReportBufferStatus()), if the machine is in INACTIVE_CG state, it enters
+   * the TO_SEND_CG state. Entering the TO_SEND_cg state means to send a SR,
+   * which is enqueued in the PHY layer. It will suffer slots of CTRL latency.
+   * When SR signal is transmitted the state changes from TO_SEND_CG to TO_RECEIVE_CG
+   * We are waiting to receive CG. When this information is received, the UE changes
+   * the state from TO_RECEIVE_CG to ACTIVE_CG. At this point the UEs are configured
+   * with CG.
+   *
+   *
+   * When a packet is generated the state changes from ACTIVE_CG to CONFIGURED_GRANT.
+   * It calls to ProcessULPacket to process the generated packet and when all the
+   * needed resources are allocated with the UE packet, the state changes
+   * from CONFIGURED_GRANT to ACTIVE_cg.
+   *
+   */
+  enum SrCgMachine : uint8_t
+  {
+    INACTIVE_CG,       //!< No SR. initial state
+    TO_SEND_CGR,       //!< We have to send the CGR when possible
+    TO_RECEIVE_CG,     //!< We have to wait until CG is received
+    ACTIVE_CG,         //!< The UEs are configured with CG
+    SCH_CG_DATA   //!< A new packet is received and the resources are allocated by CG
+  };
+  SrCgMachine m_srState_configuredGrant {INACTIVE_CG};   //!< Default state for the configured grant state machine.
+
+  std::shared_ptr<DciInfoElementTdma> m_dciGranted_stored[100]; //!< The stored DCI-s for CG allocation.
+                                                                //!< [num] is the maximum number of
+                                                                //!< slots that can be configured
+
+
+  uint8_t m_totalGrantedSymbols {0};
+  bool configuredGrant_state = false; //!< It indicates to the PHY layer if
+                                      //!< a new message is generated in the
+                                      //!< transmission phase.
+
+  uint8_t cg_slot_counter = 0;
+  bool newSlot = false;
+  bool newSlot_continue = false;
+  std::unordered_map <uint64_t, std::shared_ptr<DciInfoElementTdma>> m_dci_cg_map;
+  uint8_t cg_slot_counter_DCI = 0;
+  uint8_t cg_slot_counter_DCI_2 = 0;
+
+  uint8_t m_configurationTime = 0;
+  uint8_t m_cgPeriod = 0;
+
 };
 
 }

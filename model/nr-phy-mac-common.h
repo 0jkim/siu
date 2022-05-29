@@ -228,6 +228,16 @@ struct DciInfoElementTdma
   {
   }
 
+  
+  DciInfoElementTdma (uint16_t rnti, DciFormat format, uint8_t symStart,
+                      uint8_t numSym, std::vector<uint8_t> mcs, std::vector<uint32_t> tbs, std::vector<uint8_t> ndi,
+                      std::vector<uint8_t> rv, VarTtiType type, uint8_t bwpIndex, uint8_t m_harqProcess, const std::vector<uint8_t> &rbgBitmask, uint8_t tpc)
+    : m_rnti (rnti), m_format (format), m_symStart (symStart),
+    m_numSym (numSym), m_mcs (mcs), m_tbSize (tbs), m_ndi (ndi), m_rv (rv), m_type (type),
+    m_bwpIndex (bwpIndex), m_harqProcess(0) ,m_rbgBitmask(rbgBitmask),m_tpc(tpc)
+  {
+  }
+  
   const uint16_t m_rnti       {0}; //!< RNTI of the UE
   const DciFormat m_format    {DL}; //!< DCI format
   const uint8_t m_symStart    {0}; //!< starting symbol index for flexible TTI scheme

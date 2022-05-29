@@ -41,6 +41,8 @@
 #include <algorithm>
 #include "beam-id.h"
 
+#include "bwp-manager-gnb.h"
+
 namespace ns3 {
 NS_LOG_COMPONENT_DEFINE ("NrGnbMac");
 
@@ -427,6 +429,31 @@ NrGnbMac::GetTypeId (void)
                      "Harq feedback.",
                       MakeTraceSourceAccessor (&NrGnbMac::m_dlHarqFeedback),
                      "ns3::NrGnbMac::DlHarqFeedbackTracedCallback")
+     // Configured Grant
+    .AddAttribute ("CG",
+                  "Activate configured grant scheduling for UL periodic transmissions",
+                  BooleanValue (true),
+                  MakeBooleanAccessor (&NrGnbMac::SetCG,
+                                       &NrGnbMac::GetCG),
+                   MakeBooleanChecker ())
+    .AddAttribute ("ConfigurationTime",
+                  "Time required to configure UE with configured grant signal",
+                   UintegerValue (10),
+                   MakeUintegerAccessor (&NrGnbMac::SetConfigurationTime,
+                                         &NrGnbMac::GetConfigurationTime),
+                    MakeUintegerChecker<uint8_t> ())
+    .AddAttribute ("CGPeriod",
+                  "The periodicity of configured grant transmissions",
+                   UintegerValue (10),
+                   MakeUintegerAccessor (&NrGnbMac::SetCGPeriod,
+                                         &NrGnbMac::GetCGPeriod),
+                   MakeUintegerChecker<uint8_t> ())
+    .AddAttribute ("N_UE_cg",
+                  "The number of UEs used by CG for UL",
+                   UintegerValue (10),
+                   MakeUintegerAccessor (&NrGnbMac::SetNUEcg,
+                                         &NrGnbMac::GetNUEcg),
+                   MakeUintegerChecker<uint8_t> ())
   ;
   return tid;
 }
@@ -649,37 +676,123 @@ NrGnbMac::DoSlotUlIndication (const SfnSf &sfnSf, LteNrTddSlotType type)
     }
   m_ulCqiReceived.clear ();
 
-  // Send SR info to the scheduler
-  {
-    NrMacSchedSapProvider::SchedUlSrInfoReqParameters params;
-    params.m_snfSf = m_currentSlot;
-    params.m_srList.insert (params.m_srList.begin(), m_srRntiList.begin (), m_srRntiList.end ());
-    m_srRntiList.clear();
-
-    m_macSchedSapProvider->SchedUlSrInfoReq (params);
-
-    for (const auto & v : params.m_srList)
-      {
-        Ptr<NrSRMessage> msg =  Create<NrSRMessage> ();
-        msg->SetRNTI (v);
-        m_macRxedCtrlMsgsTrace (m_currentSlot, GetCellId (), v, GetBwpId (), msg);
-      }
-  }
-
-  // Send UL BSR reports to the scheduler
-  if (m_ulCeReceived.size () > 0)
+  if (m_cgScheduling)
     {
-      NrMacSchedSapProvider::SchedUlMacCtrlInfoReqParameters ulMacReq;
-      ulMacReq.m_sfnSf = sfnSf;
-      ulMacReq.m_macCeList.insert (ulMacReq.m_macCeList.begin (), m_ulCeReceived.begin (), m_ulCeReceived.end ());
-      m_ulCeReceived.erase (m_ulCeReceived.begin (), m_ulCeReceived.end ());
-      m_macSchedSapProvider->SchedUlMacCtrlInfoReq (ulMacReq);
+      static bool cgr_configuration = false;
+      static SfnSf m_cgr_configuration = SfnSf (0,0,0,sfnSf.GetNumerology ());
+      static SfnSf m_sr_configurateGrant = SfnSf (0,0,0,sfnSf.GetNumerology ());
+      static uint8_t pos = 0;
+      uint8_t numberOfSlot_insideOneSubframe = pow(2,(sfnSf.GetNumerology ()));
 
-      for (const auto & v : ulMacReq.m_macCeList)
+      // Send CGR info to the scheduler in order to allocate resources:
+      // 1) CGR for the configuration phase, we use it in order to copy the resources to reused them with configured grant
+      if (!cgr_configuration)
         {
-          Ptr<NrBsrMessage> msg = Create<NrBsrMessage> ();
-          msg->SetBsr (v);
-          m_macRxedCtrlMsgsTrace (m_currentSlot, GetCellId (), v.m_rnti, GetBwpId (), msg);
+          for (const auto & v : m_srRntiList)
+            {
+              if(v != 0 )
+                {
+                  cgr_configuration = true;
+                }
+            }
+          if (cgr_configuration)
+            {
+              m_cgr_configuration = m_currentSlot;
+              uint8_t number_slots_for_processing_configurationPeriod = 7;
+              uint8_t number_slots_configuration = (m_configurationTime*numberOfSlot_insideOneSubframe)-number_slots_for_processing_configurationPeriod;
+              m_cgr_configuration.Add(number_slots_configuration);
+            }
+        }
+
+      {
+        NrMacSchedSapProvider::SchedUlCgrInfoReqParameters params;
+
+        // 2) For the first packet using configured grant after configuration phase,
+        // in ACTIVE_CG and SCH_CG_DATA states in the UE.
+        if (m_cgr_configuration == m_currentSlot && cgr_configuration)
+          {
+            m_sr_configurateGrant = m_cgr_configuration;
+            uint8_t number_slots_configurateGrantPeriod = m_cgPeriod*numberOfSlot_insideOneSubframe;
+            m_sr_configurateGrant.Add(number_slots_configurateGrantPeriod);
+            while (pos <= m_N_UE_cg)
+              {
+                m_ccmMacSapUser->UlReceiveCgr (rnti_configuredGrant[pos], componentCarrierId_configuredGrant, bufCgr_configuredGrant[pos],lcid_configuredGrant);
+                pos ++;
+                if(pos > m_N_UE_cg)
+                  {
+                    pos =0;
+                    break;
+                  }
+              }
+          }
+
+        // 3) For configured grant phase after sending the first configured grant packet
+        if(m_sr_configurateGrant == m_currentSlot && cgr_configuration){
+            //Configured grant (time in slots), example: If numerology = 1 and if period = 1ms, then the configuration period in slots is 2.
+            uint8_t number_slots_configurateGrantPeriod = m_cgPeriod*numberOfSlot_insideOneSubframe;
+            m_sr_configurateGrant.Add(number_slots_configurateGrantPeriod);
+            while (pos <= m_N_UE_cg){
+                m_ccmMacSapUser->UlReceiveCgr (rnti_configuredGrant[pos], componentCarrierId_configuredGrant,bufCgr_configuredGrant[pos],lcid_configuredGrant);
+                pos ++;
+                if(pos > m_N_UE_cg){
+                    pos =0;
+                    break;
+                }
+            }
+        }
+
+        params.m_snfSf = m_currentSlot;
+        params.m_srList.insert (params.m_srList.begin(), m_srRntiList.begin (), m_srRntiList.end ());
+        m_srRntiList.clear();
+
+        //Create a list of bufCgr
+        params.bufCgr = m_cgrBufSizeList;
+        params.lcid = lcid_configuredGrant;
+
+        m_macSchedSapProvider->SchedUlCgrInfoReq (params);
+      }
+
+      // We do not have to send UL BSR reports to the scheduler because it uses configured grant,
+      // all the resources are allocated.
+      if (m_ulCeReceived.size () > 0)
+        {
+          m_ulCeReceived.erase (m_ulCeReceived.begin (), m_ulCeReceived.end ());
+        }
+    }
+  else
+    {
+      // Send SR info to the scheduler
+      {
+        NrMacSchedSapProvider::SchedUlSrInfoReqParameters params;
+        params.m_snfSf = m_currentSlot;
+        params.m_srList.insert (params.m_srList.begin(), m_srRntiList.begin (), m_srRntiList.end ());
+        m_srRntiList.clear();
+
+        m_macSchedSapProvider->SchedUlSrInfoReq (params);
+
+        for (const auto & v : params.m_srList)
+          {
+            Ptr<NrSRMessage> msg =  Create<NrSRMessage> ();
+            msg->SetRNTI (v);
+            m_macRxedCtrlMsgsTrace (m_currentSlot, GetCellId (), v, GetBwpId (), msg);
+          }
+      }
+
+      // Send UL BSR reports to the scheduler
+      if (m_ulCeReceived.size () > 0)
+        {
+          NrMacSchedSapProvider::SchedUlMacCtrlInfoReqParameters ulMacReq;
+          ulMacReq.m_sfnSf = sfnSf;
+          ulMacReq.m_macCeList.insert (ulMacReq.m_macCeList.begin (), m_ulCeReceived.begin (), m_ulCeReceived.end ());
+          m_ulCeReceived.erase (m_ulCeReceived.begin (), m_ulCeReceived.end ());
+          m_macSchedSapProvider->SchedUlMacCtrlInfoReq (ulMacReq);
+
+          for (const auto & v : ulMacReq.m_macCeList)
+            {
+              Ptr<NrBsrMessage> msg = Create<NrBsrMessage> ();
+              msg->SetBsr (v);
+              m_macRxedCtrlMsgsTrace (m_currentSlot, GetCellId (), v.m_rnti, GetBwpId (), msg);
+            }
         }
     }
 
@@ -696,8 +809,7 @@ NrGnbMac::DoSlotUlIndication (const SfnSf &sfnSf, LteNrTddSlotType type)
       m_ulHarqInfoReceived.clear ();
     }
 
-  m_macSchedSapProvider->SchedUlTriggerReq (ulParams);
-
+      m_macSchedSapProvider->SchedUlTriggerReq (ulParams);
 }
 
 void
@@ -899,8 +1011,25 @@ NrGnbMac::DoReceiveControlMessage  (Ptr<NrControlMessage> msg)
 {
   NS_LOG_FUNCTION (this << msg);
 
+  static uint8_t cont = 0;
+
   switch (msg->GetMessageType ())
     {
+    case(NrControlMessage::CGR): // Configured Grant Request
+      {
+        Ptr<NrCGRMessage> cgr = DynamicCast<NrCGRMessage> (msg);
+        // Stores the RNTI and BWP id for future transmissions (configured grant).
+        rnti_configuredGrant[cont] = cgr->GetRNTI();
+        componentCarrierId_configuredGrant = GetBwpId();
+        bufCgr_configuredGrant [cont] = cgr->GetBufSize();
+        lcid_configuredGrant = cgr->GetLCID();
+
+        NS_LOG_INFO("Buffer size = "<<bufCgr_configuredGrant [cont]);
+
+        m_ccmMacSapUser-> UlReceiveCgr (cgr->GetRNTI (), GetBwpId (), cgr->GetBufSize(), cgr->GetLCID());
+        cont ++;
+        break;
+      }
     case (NrControlMessage::SR):
       {
         // Report it to the CCM. Then he will call the right MAC
@@ -1500,6 +1629,66 @@ void
 NrGnbMac::DoCschedCellConfigUpdateInd (NrMacCschedSapUser::CschedCellConfigUpdateIndParameters params)
 {
   NS_LOG_FUNCTION (this);
+}
+
+//Configured grant
+
+uint8_t
+NrGnbMac::GetConfigurationTime () const
+{
+  return m_configurationTime;
+}
+
+void
+NrGnbMac::SetConfigurationTime (uint8_t v)
+{
+  m_configurationTime = v;
+}
+
+uint8_t
+NrGnbMac::GetCGPeriod () const
+{
+  return m_cgPeriod;
+}
+
+void
+NrGnbMac::SetCGPeriod (uint8_t v)
+{
+  m_cgPeriod = v;
+}
+
+void
+NrGnbMac::SetCG (bool CGsch)
+{
+  m_cgScheduling = CGsch;
+}
+
+bool
+NrGnbMac::GetCG () const
+{
+  return m_cgScheduling;
+}
+
+uint8_t
+NrGnbMac::GetNUEcg () const
+{
+  return m_N_UE_cg;
+}
+
+void
+NrGnbMac::SetNUEcg (uint8_t v)
+{
+  m_N_UE_cg = v;
+}
+
+void
+NrGnbMac::DoReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid)
+{
+  NS_LOG_FUNCTION (this);
+  m_srRntiList.push_back (rnti);
+  m_srCallback (GetBwpId (), rnti);
+  m_cgrBufSizeList.push_back (bufSize);
+  lcid_configuredGrant = lcid;
 }
 
 }

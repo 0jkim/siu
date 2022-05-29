@@ -181,6 +181,17 @@ public:
    */
   virtual uint8_t GetUlCtrlSyms () const = 0;
 
+  //Configured Grant
+  struct SchedUlCgrInfoReqParameters
+  {
+    SfnSf m_snfSf;                                 //!< SnfSf in which the sr where received
+    std::vector<uint16_t> m_srList;                //!< List of RNTI which asked for a SR
+    std::list<uint32_t> bufCgr;
+    uint8_t lcid;
+  };
+
+  virtual void SchedUlCgrInfoReq (const SchedUlCgrInfoReqParameters &params) = 0;
+
 private:
 };
 

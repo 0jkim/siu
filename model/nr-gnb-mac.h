@@ -252,6 +252,19 @@ public:
       (const SfnSf sfn, const uint16_t nodeId, const uint16_t rnti,
        const uint8_t bwpId, Ptr<NrControlMessage>);
 
+  // Configured Grant
+  void SetCG (bool CGSch);
+  bool GetCG () const;
+
+  void SetConfigurationTime (uint8_t configurationTime);
+  uint8_t GetConfigurationTime () const;
+
+  void SetCGPeriod (uint8_t CGPeriod);
+  uint8_t GetCGPeriod () const;
+
+  void SetNUEcg (uint8_t CGPeriod);
+  uint8_t GetNUEcg () const;
+
 protected:
   /**
    * \brief DoDispose method inherited from Object
@@ -335,6 +348,9 @@ private:
    * Clears m_rapIdRntiMap.
    */
   void SendRar (const std::vector<BuildRarListElement_s> &rarList);
+
+  //Configured Grant
+  void DoReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid);
 
 private:
 
@@ -420,6 +436,18 @@ private:
    * Trace DL HARQ info list elements.
    */
   TracedCallback<const DlHarqInfo&> m_dlHarqFeedback;
+
+  //Configured Grant
+  uint16_t rnti_configuredGrant[100]; //!< Stored RNTI to create SR in transmission phase
+  uint8_t componentCarrierId_configuredGrant; //!< Stored BWP Id to create SR in the transmission phase
+  uint32_t bufCgr_configuredGrant[100]; //!< The buffer size of each UE
+  std::list<uint32_t> m_cgrBufSizeList; //!< List of RNTI that requested a SR
+  uint8_t lcid_configuredGrant;
+
+  bool m_cgScheduling = true;
+  uint8_t m_configurationTime = 0;
+  uint8_t m_cgPeriod = 0;
+  uint8_t m_N_UE_cg = 0;
 };
 
 }

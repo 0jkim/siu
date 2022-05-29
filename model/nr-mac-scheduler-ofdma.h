@@ -80,6 +80,10 @@ public:
   {
   }
 
+  // Configured Grant
+  void SetScheduler (bool v);
+  bool GetScheduler () const;
+
 protected:
   virtual BeamSymbolMap
   AssignDLRBG (uint32_t symAvail, const ActiveUeMap &activeDl) const override;
@@ -113,5 +117,8 @@ protected:
 private:
 
   TracedValue<uint32_t> m_tracedValueSymPerBeam;
+
+  // Configured Grant
+  bool m_schTypeFlexTDMA {true}; //!< DL Data symbols (attribute)
 };
 } // namespace ns3

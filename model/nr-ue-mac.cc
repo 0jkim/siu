@@ -26,6 +26,7 @@
   while (false);
 
 #include "nr-ue-mac.h"
+//#include "nr-ue-phy.h"
 #include <ns3/log.h>
 #include <ns3/boolean.h>
 #include <ns3/lte-radio-bearer-tag.h>
@@ -153,13 +154,11 @@ UeMemberNrMacSapProvider::TransmitPdu (TransmitPduParameters params)
   m_mac->DoTransmitPdu (params);
 }
 
-
 void
 UeMemberNrMacSapProvider::ReportBufferStatus (ReportBufferStatusParameters params)
 {
   m_mac->DoReportBufferStatus (params);
 }
-
 
 class NrUePhySapUser;
 
@@ -177,6 +176,9 @@ public:
   //virtual void NotifyHarqDeliveryFailure (uint8_t harqId);
 
   virtual uint8_t GetNumHarqProcess () const override;
+
+  //Configured Grant
+  virtual bool SlotIndication_configuredGrant (SfnSf sfn) override;
 
 private:
   NrUeMac* m_mac;
@@ -233,6 +235,25 @@ NrUeMac::GetTypeId (void)
                      "Ue MAC Control Messages Traces.",
                      MakeTraceSourceAccessor (&NrUeMac::m_macTxedCtrlMsgsTrace),
                      "ns3::NrMacRxTrace::TxedUeMacCtrlMsgsTracedCallback")
+    // Configured Grant
+    .AddAttribute ("CG",
+                  "Activate configured grant scheduling for UL periodic transmissions",
+                  BooleanValue (true),
+                  MakeBooleanAccessor (&NrUeMac::SetCG,
+                                       &NrUeMac::GetCG),
+                  MakeBooleanChecker ())
+    .AddAttribute ("ConfigurationTime",
+                  "Time required to configure UE with configured grant signal",
+                   UintegerValue (10),
+                   MakeUintegerAccessor (&NrUeMac::SetConfigurationTime,
+                                         &NrUeMac::GetConfigurationTime),
+                   MakeUintegerChecker<uint8_t> ())
+    .AddAttribute ("CGPeriod",
+                  "The periodicity of configured grant transmissions",
+                   UintegerValue (10),
+                   MakeUintegerAccessor (&NrUeMac::SetCGPeriod,
+                                         &NrUeMac::GetCGPeriod),
+                   MakeUintegerChecker<uint8_t> ())
   ;
   return tid;
 }
@@ -398,10 +419,30 @@ NrUeMac::DoReportBufferStatus (LteMacSapProvider::ReportBufferStatusParameters p
       it = m_ulBsrReceived.insert (std::make_pair (params.lcid, params)).first;
     }
 
-  if (m_srState == INACTIVE)
+  // The state machine for CG and dynamic grant is different, so when a packet is
+  // received in the UE layer of the upper layers, depending on which scheduling
+  // we are using, it will move to one state or another
+  if (m_cgScheduling)
     {
-      NS_LOG_INFO ("INACTIVE -> TO_SEND, bufSize " << GetTotalBufSize ());
-      m_srState = TO_SEND;
+      if (m_srState_configuredGrant == INACTIVE_CG)
+        {
+          NS_LOG_INFO ("INACTIVE -> TO_SEND, bufSize " << GetTotalBufSize ());
+          m_srState_configuredGrant = TO_SEND_CGR;
+        }
+
+      if (m_srState_configuredGrant == ACTIVE_CG)
+        {
+          NS_LOG_INFO ("CONFIGURED GRANT, bufSize " << GetTotalBufSize ());
+          m_srState_configuredGrant = SCH_CG_DATA; //If we have a new packet, we are not going to call to SR.
+        }
+    }
+  else
+    {
+      if (m_srState == INACTIVE)
+        {
+          NS_LOG_INFO ("INACTIVE -> TO_SEND, bufSize " << GetTotalBufSize ());
+          m_srState = TO_SEND;
+        }
     }
 }
 
@@ -616,6 +657,42 @@ NrUeMac::ProcessUlDci (const Ptr<NrUlDciMessage> &dciMsg)
   m_ulDciTotalUsed = 0;
   m_ulDci = dciMsg->GetDciInfoElement ();
 
+  // When the UE receives the CG signal it stores this information in the MAC layer
+  // It represents the TO_RECEIVE_CG state
+  if (m_cgScheduling)
+    {
+      m_dciGranted_stored[cg_slot_counter_DCI] = std::make_shared <DciInfoElementTdma> (m_ulDci->m_rnti,
+                                                                                 m_ulDci->m_format,
+                                                                                 m_ulDci->m_symStart,
+                                                                                 m_ulDci->m_numSym,
+                                                                                 m_ulDci->m_mcs,
+                                                                                 m_ulDci->m_tbSize,
+                                                                                 m_ulDci->m_ndi,
+                                                                                 m_ulDci->m_rv,
+                                                                                 m_ulDci->m_type,
+                                                                                 m_ulDci -> m_bwpIndex,
+                                                                                 m_ulDci->m_harqProcess,
+                                                                                 m_ulDci->m_rbgBitmask,
+                                                                                 m_ulDci->m_tpc);
+
+      uint8_t streamId = 0;
+      SfnSf dataSfn_cg = m_currentSlot;
+      uint8_t number_slots_for_processing_configurationPeriod = 5;
+      uint8_t numberOfSlot_insideOneSubframe = pow(2,(m_currentSlot.GetNumerology ()));
+      m_configurationTime = GetConfigurationTime();
+      uint8_t number_slots_configuration = (GetConfigurationTime()*numberOfSlot_insideOneSubframe)-number_slots_for_processing_configurationPeriod;
+      dataSfn_cg.Add(number_slots_configuration);
+      uint64_t key = dataSfn_cg.GetEncForStreamWithSymStart (streamId, m_dciGranted_stored[cg_slot_counter_DCI]->m_symStart);
+
+      auto it_1 = m_dci_cg_map.find (key);
+
+      if (it_1 == m_dci_cg_map.end ())
+        {
+          it_1 = m_dci_cg_map.insert (std::make_pair (key, m_dciGranted_stored[cg_slot_counter_DCI])).first;
+          cg_slot_counter_DCI = cg_slot_counter_DCI +1;
+        }
+    }
+
   m_macRxedCtrlMsgsTrace (m_currentSlot, GetCellId (), m_rnti, GetBwpId (), dciMsg);
 
   NS_LOG_INFO ("UL DCI received, transmit data in slot " << dataSfn <<
@@ -645,9 +722,17 @@ NrUeMac::ProcessUlDci (const Ptr<NrUlDciMessage> &dciMsg)
 
       if (GetTotalBufSize () == 0)
         {
-          m_srState = INACTIVE;
-          NS_LOG_INFO ("ACTIVE -> INACTIVE, bufSize " << GetTotalBufSize ());
-
+          // Sets the correct state depending on the type of scheduling: cg or dynamic
+          if (m_cgScheduling)
+            {
+              m_srState_configuredGrant = ACTIVE_CG;
+              NS_LOG_INFO ("TO_RECEIVE_CG -> ACTIVE_CG, bufSize " << GetTotalBufSize ());
+            }
+          else
+            {
+              m_srState = INACTIVE;
+              NS_LOG_INFO ("ACTIVE -> INACTIVE, bufSize " << GetTotalBufSize ());
+            }
           // the UE may have been scheduled, but we didn't use a single byte
           // of the allocation. So send an empty PDU. This happens because the
           // byte reporting in the BSR is not accurate, due to RLC and/or
@@ -795,7 +880,9 @@ NrUeMac::SendTxData(uint32_t usefulTbs, uint32_t activeTx)
           // We need to use std::min here because bytesPerLcId can be
           // greater than bsr.txQueueSize because scheduler can assign
           // more bytes than needed due to how TB size is computed.
-          bsr.txQueueSize -= std::min (bytesPerLcId, bsr.txQueueSize);
+         // bsr.txQueueSize -= std::min (bytesPerLcId, bsr.txQueueSize);
+          bsr.txQueueSize -= std::min (bytesPerLcId-2, bsr.txQueueSize);
+
         }
       else
         {
@@ -1075,6 +1162,220 @@ NrUeMac::AssignStreams (int64_t stream)
   NS_LOG_FUNCTION (this << stream);
   m_raPreambleUniformVariable->SetStream (stream);
   return 1;
+}
+
+//Configured Grant
+
+bool  MacUeMemberPhySapUser::SlotIndication_configuredGrant (SfnSf sfn)
+{
+  return m_mac->DoSlotIndication_configuredGrant(sfn);
+}
+
+bool
+NrUeMac::DoSlotIndication_configuredGrant (const SfnSf &sfn)
+{
+
+  NS_LOG_FUNCTION (this);
+  m_currentSlot = sfn;
+  NS_LOG_INFO ("Slot " << m_currentSlot);
+
+  RefreshHarqProcessesPacketBuffer ();
+
+  if (m_srState_configuredGrant == TO_SEND_CGR)
+    {
+      uint32_t bufSr = GetTotalBufSize();
+      NS_LOG_INFO ("Sending CGR to PHY in slot " << sfn <<", changes the state"
+                   ": TO_SEND_CGR -> TO_RECEIVE_CG, with bufSr: "<< bufSr);
+      // UE MAC sends CGR to PHY in order to send to the gNB
+      SendCGR();
+
+      m_srState_configuredGrant = TO_RECEIVE_CG;
+      configuredGrant_state = false;
+      return configuredGrant_state;
+    }
+  else if (m_srState_configuredGrant == SCH_CG_DATA)
+    {
+
+      if (m_dciGranted_stored[cg_slot_counter_DCI_2] == nullptr)
+        {
+          // The packet has already been transmitted, we switch to the ACTIVE_CG status,
+          // We will be in this state until the following periodic transmission.
+          m_srState_configuredGrant = ACTIVE_CG;
+          cg_slot_counter_DCI_2 = 0;
+        }
+      else
+        {
+          uint8_t streamId = 0;
+          auto it = m_dci_cg_map.find (m_currentSlot.GetEncForStreamWithSymStart (streamId, m_dciGranted_stored[cg_slot_counter_DCI_2]->m_symStart));
+
+          if (it == m_dci_cg_map.end ())
+            {
+              // Do nothing
+            }
+          else
+            {
+              // Processes the current packet
+              m_ulDciSfnsf = m_currentSlot;
+              m_ulDci = it->second;
+              m_dci_cg_map.erase (it);
+              ProcessULPacket();
+
+              NS_LOG_INFO ("Sending a packet to PHY layer in slot " << m_ulDciSfnsf);
+
+              // Prepare resources for future transmission
+              SfnSf dataSfn_cg = m_currentSlot;
+              uint8_t numberOfSlot_insideOneSubframe = pow(2,(m_currentSlot.GetNumerology ()));
+              m_cgPeriod = GetCGPeriod();
+              uint8_t number_slots_configuration = (m_cgPeriod*numberOfSlot_insideOneSubframe);
+              dataSfn_cg.Add(number_slots_configuration);
+              uint64_t key = dataSfn_cg.GetEncForStreamWithSymStart (streamId, m_dciGranted_stored[cg_slot_counter_DCI_2]->m_symStart);
+
+              auto it_1 = m_dci_cg_map.find (key);
+
+              if (it_1 == m_dci_cg_map.end ())
+                {
+                  it_1 = m_dci_cg_map.insert (std::make_pair (key, m_dciGranted_stored[cg_slot_counter_DCI_2])).first;
+                  cg_slot_counter_DCI_2 = cg_slot_counter_DCI_2 +1;
+                }
+
+            }
+        }
+      //Send the SCH_CG_DATA state to UE-PHY
+      configuredGrant_state = true;
+      return configuredGrant_state;
+    }
+  else
+    {
+      configuredGrant_state = false;
+      return configuredGrant_state;
+    }
+  // Feedback missing
+}
+
+void
+NrUeMac::ProcessULPacket()
+{
+  NS_LOG_FUNCTION (this);
+
+  // Saving the data we need in DoTransmitPdu
+  m_ulDciTotalUsed = 0;
+
+
+  //m_macRxedCtrlMsgsTrace (m_currentSlot, GetCellId (), m_rnti, GetBwpId (), dciMsg);
+
+  NS_LOG_INFO ("UL DCI received, transmit data in slot " << m_ulDciSfnsf <<
+               " Harq Process " << +m_ulDci->m_harqProcess <<
+               " TBS " << m_ulDci->m_tbSize.at (0) << " total queue " << GetTotalBufSize ());
+
+
+  if (m_ulDci->m_ndi.at (0) == 0)
+    {
+      // This method will retransmit the data saved in the harq buffer
+      TransmitRetx ();
+
+      // This method will transmit a new BSR.
+      SendReportBufferStatus (m_ulDciSfnsf, m_ulDci->m_symStart);
+    }
+  else if (m_ulDci->m_ndi.at (0) == 1)
+    {
+      SendNewData ();
+
+      NS_LOG_INFO ("After sending NewData, bufSize " << GetTotalBufSize ());
+
+      // Send a new BSR. SendNewData() already took into account the size of
+      // the BSR.
+      SendReportBufferStatus (m_ulDciSfnsf, m_ulDci->m_symStart);
+      NS_LOG_INFO ("UL DCI processing done, sent to PHY a total of " << m_ulDciTotalUsed <<
+                   " B out of " << m_ulDci->m_tbSize.at (0) << " allocated bytes ");
+
+     if (GetTotalBufSize () == 0)
+        {
+          // the UE may have been scheduled, but we didn't use a single byte
+          // of the allocation. So send an empty PDU. This happens because the
+          // byte reporting in the BSR is not accurate, due to RLC and/or
+          // BSR quantization.
+          if (m_ulDciTotalUsed == 0)
+            {
+              NS_LOG_WARN ("No byte used for this UL-DCI, sending empty PDU");
+
+              LteMacSapProvider::TransmitPduParameters txParams;
+
+              txParams.pdu = Create<Packet> ();
+              txParams.lcid = 3;
+              txParams.rnti = m_rnti;
+              txParams.layer = 0;
+              txParams.harqProcessId = m_ulDci->m_harqProcess;
+              txParams.componentCarrierId = GetBwpId ();
+
+              DoTransmitPdu (txParams);
+            }
+        }
+    }
+}
+
+uint8_t
+NrUeMac::GetConfigurationTime () const
+{
+  return m_configurationTime;
+}
+
+void
+NrUeMac::SetConfigurationTime (uint8_t v)
+{
+  m_configurationTime = v;
+}
+
+uint8_t
+NrUeMac::GetCGPeriod () const
+{
+  return m_cgPeriod;
+}
+
+void
+NrUeMac::SetCGPeriod (uint8_t v)
+{
+  m_cgPeriod = v;
+}
+
+void
+NrUeMac::SetCG (bool CGsch)
+{
+  m_cgScheduling = CGsch;
+}
+
+bool
+NrUeMac::GetCG () const
+{
+  return m_cgScheduling;
+}
+
+void
+NrUeMac::SendCGR () const
+{
+  NS_LOG_FUNCTION (this);
+
+  if (m_rnti == 0)
+    {
+      NS_LOG_INFO ("MAC not initialized, CGR deferred");
+      return;
+    }
+
+  // create the CGR to send to the gNB
+  Ptr<NrCGRMessage> msg = Create<NrCGRMessage> ();
+  msg->SetSourceBwp (GetBwpId ());
+  msg->SetRNTI (m_rnti);
+  msg -> SetBufSize(GetTotalBufSize());
+
+  for (auto it = m_ulBsrReceived.cbegin (); it != m_ulBsrReceived.cend (); ++it)
+    {
+      if ((*it).second.rnti == m_rnti)
+        {
+          uint8_t lcid = (*it).first;
+          msg -> SetLCID(lcid);
+        }
+    }
+
+  m_phySapProvider->SendControlMessage (msg);
 }
 
 }

@@ -270,6 +270,7 @@ uint8_t NrMacSchedulerHarqRr::ScheduleDlHarq (NrMacSchedulerNs3::PointInFTPlane 
  * available symbols to retransmit the data, the feedback is buffered for
  * the next slot.
  */
+/*
 uint8_t
 NrMacSchedulerHarqRr::ScheduleUlHarq (NrMacSchedulerNs3::PointInFTPlane *startingPoint,
                                           uint8_t symAvail,
@@ -324,6 +325,7 @@ NrMacSchedulerHarqRr::ScheduleUlHarq (NrMacSchedulerNs3::PointInFTPlane *startin
                                                            dciInfoReTx->m_mcs, dciInfoReTx->m_tbSize,
                                                            ndi, rv, DciInfoElementTdma::DATA,
                                                            dciInfoReTx->m_bwpIndex, dciInfoReTx->m_tpc);
+
           dci->m_rbgBitmask = harqProcess.m_dciElement->m_rbgBitmask;
           dci->m_harqProcess = harqId;
           harqProcess.m_dciElement = dci;
@@ -356,7 +358,7 @@ NrMacSchedulerHarqRr::ScheduleUlHarq (NrMacSchedulerNs3::PointInFTPlane *startin
   NS_ASSERT (startingPoint->m_rbg == 0);
 
   return symUsed;
-}
+}*/
 
 /**
  * \brief Sort Dl Harq retx based on their symbol requirement
@@ -439,6 +441,146 @@ uint16_t
 NrMacSchedulerHarqRr::GetBandwidthInRbg() const
 {
   return m_getBwInRbg ();
+}
+
+// Configured Grant
+
+uint8_t
+NrMacSchedulerHarqRr::ScheduleUlHarq (NrMacSchedulerNs3::PointInFTPlane *startingPoint,
+                                          uint8_t symAvail,
+                                          const std::unordered_map<uint16_t, std::shared_ptr<NrMacSchedulerUeInfo> > &ueMap,
+                                          std::vector<UlHarqInfo> *ulHarqToRetransmit,
+                                          const std::vector<UlHarqInfo> &ulHarqFeedback,
+                                          SlotAllocInfo *slotAlloc) const
+{
+  NS_LOG_FUNCTION (this);
+  uint8_t symUsed = 0;
+  uint8_t priorSym = 0;
+  NS_ASSERT (startingPoint->m_rbg == 0);
+  bool operationModeFDD = false;
+
+  NS_LOG_INFO ("Scheduling UL HARQ starting from sym " << +startingPoint->m_sym <<
+               " and RBG " << +startingPoint->m_rbg << ". Available symbols: " <<
+               symAvail << " number of feedback: " << ulHarqFeedback.size ());
+
+  for (uint16_t i = 0; i < ulHarqFeedback.size () && symAvail > 0; i++)
+    {
+      UlHarqInfo harqInfo = ulHarqFeedback.at (i);
+      uint8_t harqId = harqInfo.m_harqProcessId;
+      uint16_t rnti = harqInfo.m_rnti;
+
+      NS_ABORT_IF (harqInfo.IsReceivedOk ());
+
+      // retx correspondent block: retrieve the UL-DCI
+      HarqProcess & harqProcess = ueMap.find (rnti)->second->m_ulHarq.Find (harqId)->second;
+      NS_ASSERT(harqProcess.m_status == HarqProcess::RECEIVED_FEEDBACK);
+
+      harqProcess.m_status = HarqProcess::WAITING_FEEDBACK;
+      harqProcess.m_timer = 0;
+      auto & dciInfoReTx = harqProcess.m_dciElement;
+
+      NS_LOG_INFO ("Feedback is for UE " << rnti << " process " << +harqId <<
+                   " sym: " << +dciInfoReTx->m_numSym);
+
+      if (symAvail >= dciInfoReTx->m_numSym)
+        {
+          symAvail -= dciInfoReTx->m_numSym;
+          //symUsed += dciInfoReTx->m_numSym;
+
+
+          if ((startingPoint->m_sym == 1 || startingPoint->m_sym == 0) && priorSym == 0)
+            {
+              priorSym = startingPoint->m_sym;
+              if (startingPoint->m_sym == 1)
+                {
+                  symUsed = priorSym+dciInfoReTx->m_numSym-1;
+                  operationModeFDD = false;
+                }
+              else
+                {
+                  symUsed = priorSym+dciInfoReTx->m_numSym;
+                  operationModeFDD = true;
+                }
+            }
+          else if (priorSym == dciInfoReTx->m_symStart && priorSym > 0)
+            {
+              //Do nothing
+            }
+          else if ((symUsed+1) < dciInfoReTx->m_symStart)
+            {
+              if (operationModeFDD)
+                {
+                  priorSym = symUsed;
+                }
+              else
+                {
+                  priorSym = symUsed + 1;
+                }
+              symUsed = symUsed + dciInfoReTx->m_numSym;
+            }
+          else
+            {
+              symUsed = dciInfoReTx->m_symStart+dciInfoReTx->m_numSym-1;
+              priorSym = dciInfoReTx->m_symStart;
+            }
+
+          //dciInfoReTx->m_symStart = symUsed;
+
+          NS_ASSERT (dciInfoReTx->m_format == DciInfoElementTdma::UL);
+
+          NS_ASSERT_MSG (harqProcess.nackStreamIndexes.size () == 1, "MIMO is not supported for UL yet");
+
+          uint8_t rvIndex = dciInfoReTx->m_rv.at (0) + 1;
+          std::vector<uint8_t> rv {rvIndex};
+          std::vector<uint8_t> ndi {0};
+
+          // Configured Grant: From starting point until last symbol
+
+          auto dci = std::make_shared<DciInfoElementTdma> (dciInfoReTx->m_rnti, dciInfoReTx->m_format,
+                                                           priorSym,//symUsed,
+                                                           dciInfoReTx->m_numSym,
+                                                           dciInfoReTx->m_mcs, dciInfoReTx->m_tbSize,
+                                                           ndi, rv, DciInfoElementTdma::DATA,
+                                                           dciInfoReTx->m_bwpIndex, dciInfoReTx->m_tpc);
+          dci->m_rbgBitmask = harqProcess.m_dciElement->m_rbgBitmask;
+          dci->m_harqProcess = harqId;
+          harqProcess.m_dciElement = dci;
+          dciInfoReTx = harqProcess.m_dciElement;
+
+          if (operationModeFDD)
+            {
+              startingPoint->m_sym = symUsed;
+            }
+          else
+            {
+              startingPoint->m_sym = symUsed+1;
+            }
+
+          VarTtiAllocInfo slotInfo (dciInfoReTx);
+          for (uint8_t stream = 0; stream < dciInfoReTx->m_tbSize.size (); stream++)
+            {
+              NS_LOG_DEBUG ("UE" << dciInfoReTx->m_rnti <<
+                            " gets UL symbols " << static_cast<uint32_t> (dciInfoReTx->m_symStart) <<
+                            "-" << static_cast<uint32_t> (dciInfoReTx->m_symStart + dciInfoReTx->m_numSym - 1) <<
+                            " tbs " << dciInfoReTx->m_tbSize.at (stream) <<
+                            " harqId " << static_cast<uint32_t> (dciInfoReTx->m_harqProcess) <<
+                            " rv " << static_cast<uint32_t> (dciInfoReTx->m_rv.at (stream)) <<
+                            " RETX");
+            }
+          slotAlloc->m_varTtiAllocInfo.push_front (slotInfo);
+          slotAlloc->m_numSymAlloc = symUsed + 1;
+
+          ueMap.find (rnti)->second->m_ulMRBRetx = dciInfoReTx->m_numSym * GetBandwidthInRbg ();
+        }
+      else
+        {
+          ulHarqToRetransmit->push_back (ulHarqFeedback.at (i));
+        }
+    }
+
+  NS_ASSERT (startingPoint->m_rbg == 0);
+
+  return symUsed;
 }
 
 } // namespace ns3

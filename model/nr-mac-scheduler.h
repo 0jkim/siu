@@ -249,6 +249,11 @@ public:
    */
   virtual int64_t AssignStreams (int64_t stream) = 0;
 
+  //Configured Grant
+  virtual void
+  DoSchedUlCgrInfoReq (const NrMacSchedSapProvider::SchedUlCgrInfoReqParameters &params) = 0;
+
+
 protected:
   NrMacSchedSapUser* m_macSchedSapUser           {nullptr};  //!< SAP user
   NrMacCschedSapUser* m_macCschedSapUser         {nullptr};  //!< SAP User

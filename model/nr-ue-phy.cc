@@ -198,6 +198,25 @@ NrUePhy::GetTypeId (void)
                      "Power Spectral Density data.",
                      MakeTraceSourceAccessor (&NrUePhy::m_reportPowerSpectralDensity),
                      "ns3::NrUePhy::PowerSpectralDensityTracedCallback")
+     // Configured Grant
+    .AddAttribute ("CG",
+                   "Activate configured grant scheduling for UL periodic transmissions",
+                   BooleanValue (true),
+                   MakeBooleanAccessor (&NrUePhy::SetCG,
+                                        &NrUePhy::GetCG),
+                   MakeBooleanChecker ())
+    .AddAttribute ("ConfigurationTime",
+                  "Time required to configure UE with configured grant signal",
+                   UintegerValue (10),
+                   MakeUintegerAccessor (&NrUePhy::SetConfigurationTime,
+                                         &NrUePhy::GetConfigurationTime),
+                   MakeUintegerChecker<uint8_t> ())
+    .AddAttribute ("CGPeriod",
+                  "The periodicity of configured grant transmissions",
+                   UintegerValue (10),
+                   MakeUintegerAccessor (&NrUePhy::SetCGPeriod,
+                                         &NrUePhy::GetCGPeriod),
+                   MakeUintegerChecker<uint8_t> ())
       ;
   return tid;
 }
@@ -452,6 +471,8 @@ NrUePhy::InsertFutureAllocation (const SfnSf &sfnSf,
       SlotAllocInfo slotAllocInfo = SlotAllocInfo (sfnSf);
       slotAllocInfo.m_varTtiAllocInfo.push_back (varTtiInfo);
       PushBackSlotAllocInfo (slotAllocInfo);
+
+      NS_LOG_INFO ("Slot InsertFutureAllocation:" << sfnSf );
     }
 }
 
@@ -526,7 +547,32 @@ NrUePhy::PhyCtrlMessagesReceived (const Ptr<NrControlMessage> &msg)
 
       if (dciInfoElem->m_type == DciInfoElementTdma::DATA)
         {
-          ProcessDataDci (ulSfnSf, dciInfoElem);
+          if (m_cgScheduling)
+            {
+              // We allocate resources for a frist trnasmission followeb by receiving CG,
+              // this transmission is not necessary, but we will perform it to empty the buffer.
+              InsertFutureAllocation (ulSfnSf, dciInfoElem);
+
+              /** We allocate resources for ht efirst trnasmission where the UEs
+               * do not have to request resources to transmit the packet
+               *
+               *  Number Of Slots = (number of sub-frames for configuration period)*(number of slots inside a sub-frame 2 power of numerology) - 3 slots - 4 slots
+               *  3 slots => (number of slots until gNB receives UL CTRL (SR), this number is fixed in this scenario -> L2L1processing)
+               *  4 slots => (the slots are prepared in DoSlotUlIndication for 4 slots later, this number is fixed in this scenario -> k2 = 4)
+               *
+               *
+               *  If configuration period is 10ms and numerology is 1 : Number of slots = (10*2)-3-4 = 20-7 = 13 slots*/
+              uint8_t numberOfSlot_insideOneSubframe = pow(2,GetNumerology ());
+              uint8_t number_slots_for_processing_configurationPeriod = 7;
+              uint8_t number_slots_configuration = (configurationTime*numberOfSlot_insideOneSubframe)-number_slots_for_processing_configurationPeriod;
+              ulSfnSf.Add(number_slots_configuration);
+
+              InsertFutureAllocation (ulSfnSf, dciInfoElem);
+            }
+          else
+            {
+              ProcessDataDci (ulSfnSf, dciInfoElem);
+            }
           m_phySapUser->ReceiveControlMessage (msg);
         }
       else if (dciInfoElem->m_type == DciInfoElementTdma::SRS)
@@ -715,8 +761,63 @@ NrUePhy::StartSlot (const SfnSf &s)
   m_currentSlot = s;
   m_lastSlotStart = Simulator::Now ();
 
-  // Call MAC before doing anything in PHY
-  m_phySapUser->SlotIndication (m_currentSlot);   // trigger mac
+  // If the configured grant is used, the physical layer must know if the UE is
+  // in SCH_CG_DATA state in order to prepare the resources for the transmission of the next packet.
+  // The resources are stored using InsertFutureAllocation
+  if (m_cgScheduling)
+    {
+      // The UE PHY layer receives the information from the MAC layer if a new packet is generated in the UE (transmission phase).
+       m_ulPacketToTransmit = m_phySapUser->SlotIndication_configuredGrant (m_currentSlot);
+
+       if (m_ulPacketToTransmit)
+         {
+           if (m_dciGranted[cg_slot_counter_futureTx] == nullptr)
+             {
+               cg_slot_counter_futureTx = 0;
+             }
+           else
+             {
+               uint8_t streamId = 0;
+               auto it = m_dci_cg_map.find (m_currentSlot.GetEncForStreamWithSymStart (streamId, m_dciGranted[cg_slot_counter_futureTx]->m_symStart));
+
+               if (it == m_dci_cg_map.end ())
+                 {
+                   // Do nothing
+                 }
+               else
+                 {
+                   SfnSf m_sfnsfConfiguredGrantPeriod = m_currentSlot;
+                   uint8_t numberOfSlot_insideOneSubframe = pow(2,GetNumerology ());
+                   // Calculate in which symbol starts the next periodic transmission
+                   m_sfnsfConfiguredGrantPeriod.Add(numberOfSlot_insideOneSubframe*configuredGrant_periodicity);
+
+                   m_ulDci = it->second;
+
+                   InsertFutureAllocation(m_sfnsfConfiguredGrantPeriod, m_ulDci);
+
+                   m_dci_cg_map.erase (it);
+
+                   NS_LOG_INFO ("Sending a packet to PHY layer in slot " << m_sfnsfConfiguredGrantPeriod);
+
+                   uint64_t key = m_sfnsfConfiguredGrantPeriod.GetEncForStreamWithSymStart (streamId, m_dciGranted[cg_slot_counter_futureTx]->m_symStart);
+
+                   auto it_1 = m_dci_cg_map.find (key);
+
+                   if (it_1 == m_dci_cg_map.end ())
+                     {
+                       it_1 = m_dci_cg_map.insert (std::make_pair (key, m_dciGranted[cg_slot_counter_futureTx])).first;
+                       cg_slot_counter_futureTx = cg_slot_counter_futureTx +1;
+                     }
+
+                 }
+             }
+         }
+    }
+  else
+    {
+      // Call MAC before doing anything in PHY
+      m_phySapUser->SlotIndication (m_currentSlot);   // trigger mac
+    }
 
   // update the current slot object, and insert DL/UL CTRL allocations depending on the TDD pattern
   if (SlotAllocInfoExists (m_currentSlot))
@@ -786,8 +887,7 @@ NrUePhy::StartSlot (const SfnSf &s)
 
     }
 
-
-  Simulator::Schedule (nextVarTtiStart, &NrUePhy::StartVarTti, this, allocation.m_dci);
+      Simulator::Schedule (nextVarTtiStart, &NrUePhy::StartVarTti, this, allocation.m_dci);
 }
 
 
@@ -1034,7 +1134,8 @@ NrUePhy::StartVarTti (const std::shared_ptr<DciInfoElementTdma> &dci)
       varTtiPeriod = UlData (dci);
     }
 
-  Simulator::Schedule (varTtiPeriod, &NrUePhy::EndVarTti, this, dci);
+   Simulator::Schedule (varTtiPeriod, &NrUePhy::EndVarTti, this, dci);
+
 }
 
 
@@ -1062,8 +1163,54 @@ NrUePhy::EndVarTti (const std::shared_ptr<DciInfoElementTdma> &dci)
     }
   else
     {
+      // In the case of configured grant scheduling, the CG information
+      // transmitted by the gNB to the UE must be saved in the phy layer.
+      // The UE-MAC is currently in the TO_RECEIVE_CG state.
+      if (m_cgScheduling)
+        {
+          if (dci->m_type == DciInfoElementTdma::DATA && dci->m_format == DciInfoElementTdma::UL && m_ulPacketToTransmit == false)
+            {
+              m_dciGranted[cg_slot_counter] = std::make_shared <DciInfoElementTdma> (dci->m_rnti,
+                                                                                  dci->m_format,
+                                                                                  dci->m_symStart,
+                                                                                  dci->m_numSym,
+                                                                                  dci->m_mcs,
+                                                                                  dci->m_tbSize,
+                                                                                  dci->m_ndi,
+                                                                                  dci->m_rv,
+                                                                                  dci->m_type,
+                                                                                  dci -> m_bwpIndex,
+                                                                                  dci->m_harqProcess,
+                                                                                  dci->m_rbgBitmask,
+                                                                                  dci->m_tpc);
+
+              uint8_t streamId = 0;
+              SfnSf dataSfn_cg = m_currentSlot;
+              uint8_t number_slots_for_processing_configurationPeriod = 7; //5 in the mac 7 in the phy becasue it has 2 slots of processing time in phy
+              uint8_t numberOfSlot_insideOneSubframe = pow(2,(m_currentSlot.GetNumerology ()));
+              uint8_t number_slots_configuration = (configurationTime*numberOfSlot_insideOneSubframe)-number_slots_for_processing_configurationPeriod;
+              dataSfn_cg.Add(number_slots_configuration);
+
+              uint64_t key = dataSfn_cg.GetEncForStreamWithSymStart (streamId, m_dciGranted[cg_slot_counter]->m_symStart);
+
+              auto it = m_dci_cg_map.find (key);
+
+              if (it == m_dci_cg_map.end ())
+                {
+                  it = m_dci_cg_map.insert (std::make_pair (key, m_dciGranted[cg_slot_counter])).first;
+                  cg_slot_counter = cg_slot_counter +1;
+
+                }
+            }
+        }
+
       VarTtiAllocInfo allocation = m_currSlotAllocInfo.m_varTtiAllocInfo.front ();
       m_currSlotAllocInfo.m_varTtiAllocInfo.pop_front ();
+
+      // For debugging
+      if (allocation.m_dci -> m_type == DciInfoElementTdma::DATA){
+          std::cout << "UL DATA events"<<std::endl;
+      }
 
       Time nextVarTtiStart = GetSymbolPeriod () * allocation.m_dci->m_symStart;
 
@@ -1673,6 +1820,44 @@ NrUePhy::SelectRi (const std::vector<double> &avrgSinr)
 
   NS_ASSERT_MSG (ri != 0, "UE is trying to report invalid RI value of 0");
   return ri;
+}
+
+//Configured Grant
+
+void
+NrUePhy::SetCG (bool CGsch)
+{
+  m_cgScheduling = CGsch;
+}
+
+bool
+NrUePhy::GetCG () const
+{
+  return m_cgScheduling;
+}
+
+uint8_t
+NrUePhy::GetConfigurationTime () const
+{
+  return configurationTime;
+}
+
+void
+NrUePhy::SetConfigurationTime (uint8_t v)
+{
+  configurationTime = v;
+}
+
+uint8_t
+NrUePhy::GetCGPeriod () const
+{
+  return configuredGrant_periodicity;
+}
+
+void
+NrUePhy::SetCGPeriod (uint8_t v)
+{
+  configuredGrant_periodicity = v;
 }
 
 }

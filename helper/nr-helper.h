@@ -937,6 +937,9 @@ private:
   std::map<uint8_t, ComponentCarrier> m_componentCarrierPhyParams; //!< component carrier map
   std::vector< Ptr <Object> > m_channelObjectsWithAssignedStreams; //!< channel and propagation objects to which NrHelper has assigned streams in order to avoid double assignments
   Ptr<NrMacSchedulingStats> m_macSchedStats; //!<< Pointer to NrMacStatsCalculator
+  //Configured Grant
+  bool m_configuredGrant{false};
+
 };
 
 }

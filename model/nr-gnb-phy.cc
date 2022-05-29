@@ -190,6 +190,24 @@ NrGnbPhy::GetTypeId (void)
                      "Resource Block used for data: SfnSf, symbol, RB PHY map, bwp ID, cell ID",
                      MakeTraceSourceAccessor (&NrGnbPhy::m_rbStatistics),
                      "ns3::NrGnbPhy::RBStatsTracedCallback")
+    .AddAttribute ("CG",
+                  "Activate configured grant scheduling for UL periodic transmissions",
+                  BooleanValue (true),
+                  MakeBooleanAccessor (&NrGnbPhy::SetCG,
+                                       &NrGnbPhy::GetCG),
+                  MakeBooleanChecker ())
+    .AddAttribute ("ConfigurationTime",
+                  "Time required to configure UE with configured grant signal",
+                   UintegerValue (30),
+                   MakeUintegerAccessor (&NrGnbPhy::SetConfigurationTime,
+                                         &NrGnbPhy::GetConfigurationTime),
+                    MakeUintegerChecker<uint8_t> ())
+    .AddAttribute ("CGPeriod",
+                  "The periodicity of configured grant transmissions",
+                   UintegerValue (10),
+                   MakeUintegerAccessor (&NrGnbPhy::SetCGPeriod,
+                                         &NrGnbPhy::GetCGPeriod),
+                   MakeUintegerChecker<uint8_t> ())
     ;
   return tid;
 
@@ -693,7 +711,7 @@ NrGnbPhy::StartSlot (const SfnSf &startSlot)
   m_currentSlot = startSlot;
   m_lastSlotStart = Simulator::Now ();
 
-  Simulator::Schedule (GetSlotPeriod (), &NrGnbPhy::EndSlot, this);
+   Simulator::Schedule (GetSlotPeriod (), &NrGnbPhy::EndSlot, this);
 
   // update the current slot allocation; if empty (e.g., at the beginning of simu)
   // then insert a dummy allocation, without anything.
@@ -946,8 +964,16 @@ void
 NrGnbPhy::DoStartSlot ()
 {
   NS_LOG_FUNCTION (this);
-  NS_ASSERT (m_ctrlMsgs.size () == 0); // This assert has to be re-evaluated for NR-U.
-                                       // We can have messages before we weren't able to tx them before.
+
+  if (m_cgScheduling)
+    {
+      // In case of CG do not evaluate this assert for the same reason as NR-U
+    }
+  else
+    {
+      NS_ASSERT (m_ctrlMsgs.size () == 0); // This assert has to be re-evaluated for NR-U.
+                                           // We can have messages before we weren't able to tx them before.
+    }
 
   uint64_t currentSlotN = m_currentSlot.Normalize () % m_tddPattern.size ();;
 
@@ -1192,22 +1218,85 @@ NrGnbPhy::DlCtrl (const std::shared_ptr<DciInfoElementTdma> &dci)
   // TX control period
   Time varTtiPeriod = GetSymbolPeriod () * dci->m_numSym;
 
-  // The function that is filling m_ctrlMsgs is NrPhy::encodeCtrlMsgs
+
+  // Variable initialization
+  uint8_t numberOfSlot_insideOneSubframe = pow(2,GetNumerology ());
+  static SfnSf ulSfnConfigurateGrant = SfnSf (0, 0, 0, GetNumerology ());
+
   if (m_ctrlMsgs.size () > 0)
     {
-      NS_LOG_INFO ("ENB TXing DL CTRL with " << m_ctrlMsgs.size () << " msgs, frame " << m_currentSlot <<
-                    " symbols "  << static_cast<uint32_t> (dci->m_symStart) <<
-                    "-" << static_cast<uint32_t> (dci->m_symStart + dci->m_numSym - 1) <<
-                    " start " << Simulator::Now () <<
-                    " end " << Simulator::Now () + varTtiPeriod - NanoSeconds (1.0));
+      if (m_cgScheduling)
+       {
+           for (auto ctrlIt = m_ctrlMsgs.begin (); ctrlIt != m_ctrlMsgs.end (); ++ctrlIt)
+             {
+               Ptr<NrControlMessage> msg = (*ctrlIt);
 
-      for (auto ctrlIt = m_ctrlMsgs.begin (); ctrlIt != m_ctrlMsgs.end (); ++ctrlIt)
-        {
-          Ptr<NrControlMessage> msg = (*ctrlIt);
-          m_phyTxedCtrlMsgsTrace (m_currentSlot, GetCellId (), dci->m_rnti, GetBwpId (), msg);
+               if(msg->GetMessageType() == NrControlMessage::UL_DCI)
+                 {
+                   auto dciMsg = DynamicCast<NrUlDciMessage> (msg);
+                   auto dciInfoElem = dciMsg->GetDciInfoElement ();
+                   if (dciInfoElem->m_type == DciInfoElementTdma::DATA)
+                     {
+                        if (m_firstPacket_configuredGrant)
+                         {
+                            /*
+                            * Send the CG information to the UE
+                            *
+                            * Number Of Slots = (number of sub-frames for configuration period)*(number of slots inside a sub-frame 2 power of numerology) - 3 slots - 4 slots
+                            * 3 slots => (number of slots until gNB receives UL CTRL (SR), this number is fixed in this scenario -> L2L1processing)
+                            * 4 slots => (the slots are prepared in DoSlotUlIndication for 4 slots later, this number is fixed in this scenario -> k2 = 4)
+                            *
+                            *
+                            * If configuration period is 10ms and numerology is 1 : Number of slots = (10*2)-3-4 = 20-7 = 13 slots*/
+                           ulSfnConfigurateGrant = m_currentSlot;
+                           uint8_t number_slots_for_processing_configurationPeriod = 7;
+                           uint8_t number_slots_configuration = (m_configurationTime*numberOfSlot_insideOneSubframe)-number_slots_for_processing_configurationPeriod;
+                           ulSfnConfigurateGrant.Add(number_slots_configuration);
+                           m_firstPacket_configuredGrant = false;
+                         }
+                        if (ulSfnConfigurateGrant<m_currentSlot || ulSfnConfigurateGrant==m_currentSlot){
+                           // Do not send CG information if we are not in configuration phase (TO_RECEIVE_CG state in the UE state machine).
+                           NS_LOG_INFO ("No messages to send, skipping");
+                       }else{
+                           // The rest of DL CTRL signal are transmitted regardless
+                           // of which state of configured grant scheduling we are in.
+                           m_ctrlMsgs_TX.push_back(*ctrlIt);
+                       }
+                     }
+                  }else{
+                     if(msg->GetMessageType() == NrControlMessage::DL_DCI){
+                         NS_LOG_INFO ("Transmit DL DCI.");
+                     }
+                     m_ctrlMsgs_TX.push_back(*ctrlIt);
+                 }
+               m_phyTxedCtrlMsgsTrace (m_currentSlot, GetCellId (), dci->m_rnti, GetBwpId (), msg);
+             }
+            if (!m_ctrlMsgs_TX.empty()){
+               NS_LOG_INFO ("ENB TXing DL CTRL with " << m_ctrlMsgs_TX.size () << " msgs, frame " << m_currentSlot <<
+                            " symbols "  << static_cast<uint32_t> (dci->m_symStart) <<
+                            "-" << static_cast<uint32_t> (dci->m_symStart + dci->m_numSym - 1) <<
+                            " start " << Simulator::Now () <<
+                            " end " << Simulator::Now () + varTtiPeriod - NanoSeconds (1.0));
+               SendCtrlChannels (varTtiPeriod - NanoSeconds (1.0)); // -1 ns ensures control ends before data period
+           }
+
         }
+      else
+        {
+          NS_LOG_INFO ("ENB TXing DL CTRL with " << m_ctrlMsgs.size () << " msgs, frame " << m_currentSlot <<
+                        " symbols "  << static_cast<uint32_t> (dci->m_symStart) <<
+                        "-" << static_cast<uint32_t> (dci->m_symStart + dci->m_numSym - 1) <<
+                        " start " << Simulator::Now () <<
+                        " end " << Simulator::Now () + varTtiPeriod - NanoSeconds (1.0));
 
-      SendCtrlChannels (varTtiPeriod - NanoSeconds (1.0)); // -1 ns ensures control ends before data period
+          for (auto ctrlIt = m_ctrlMsgs.begin (); ctrlIt != m_ctrlMsgs.end (); ++ctrlIt)
+            {
+              Ptr<NrControlMessage> msg = (*ctrlIt);
+              m_phyTxedCtrlMsgsTrace (m_currentSlot, GetCellId (), dci->m_rnti, GetBwpId (), msg);
+            }
+
+          SendCtrlChannels (varTtiPeriod - NanoSeconds (1.0)); // -1 ns ensures control ends before data period
+        }
     }
   else
     {
@@ -1517,9 +1606,20 @@ NrGnbPhy::SendCtrlChannels (const Time &varTtiPeriod)
 
   // Currently all DL CTRL is sent only through one stream
   SetSubChannels (fullBwRb, 1);
-  // DL control will be transmitted only through a single stream, we assume that it is the first one
-  m_spectrumPhys.at(0)->StartTxDlControlFrames (m_ctrlMsgs, varTtiPeriod);
-  m_ctrlMsgs.clear ();
+
+  if (m_cgScheduling)
+    {
+      // Clear the CG DL control signal.
+      m_spectrumPhys.at (0)->StartTxDlControlFrames (m_ctrlMsgs_TX, varTtiPeriod);
+      m_ctrlMsgs.clear ();
+      m_ctrlMsgs_TX.clear();
+    }
+  else
+    {
+      // DL control will be transmitted only through a single stream, we assume that it is the first one
+      m_spectrumPhys.at(0)->StartTxDlControlFrames (m_ctrlMsgs, varTtiPeriod);
+      m_ctrlMsgs.clear ();
+    }
 }
 
 bool
@@ -1545,6 +1645,7 @@ NrGnbPhy::RegisterUe (uint64_t imsi, const Ptr<NrUeNetDevice> &ueDevice)
 void
 NrGnbPhy::PhyDataPacketReceived (const Ptr<Packet> &p)
 {
+  NS_LOG_FUNCTION (this);
   Simulator::ScheduleWithContext (m_netDevice->GetNode ()->GetId (),
                                   GetTbDecodeLatency (),
                                   &NrGnbPhySapUser::ReceivePhyPdu,
@@ -1817,6 +1918,44 @@ NrGnbPhy::ChannelAccessLost ()
   NS_LOG_FUNCTION (this);
   NS_LOG_INFO ("Channel access lost");
   m_channelStatus = NONE;
+}
+
+//Configured Grant
+
+uint8_t
+NrGnbPhy::GetConfigurationTime () const
+{
+  return m_configurationTime;
+}
+
+void
+NrGnbPhy::SetConfigurationTime (uint8_t v)
+{
+  m_configurationTime = v;
+}
+
+uint8_t
+NrGnbPhy::GetCGPeriod () const
+{
+  return configurateGrant_periodicity;
+}
+
+void
+NrGnbPhy::SetCGPeriod (uint8_t v)
+{
+  configurateGrant_periodicity = v;
+}
+
+void
+NrGnbPhy::SetCG (bool CGsch)
+{
+  m_cgScheduling = CGsch;
+}
+
+bool
+NrGnbPhy::GetCG () const
+{
+  return m_cgScheduling;
 }
 
 }

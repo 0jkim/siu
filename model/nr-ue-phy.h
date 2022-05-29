@@ -494,6 +494,18 @@ public:
                                                       const Time &time, uint16_t rnti,
                                                       uint64_t imsi, uint16_t bwpId, uint16_t cellId);
 
+  //Configured Grant
+
+
+  void SetCG (bool CGSch);
+  bool GetCG () const;
+
+  void SetConfigurationTime (uint8_t configurationTime);
+  uint8_t GetConfigurationTime () const;
+
+  void SetCGPeriod (uint8_t CGPeriod);
+  uint8_t GetCGPeriod () const;
+
 protected:
   /**
    * \brief DoDispose method inherited from Object
@@ -897,6 +909,36 @@ private:
   bool m_reportedRi2 {false}; /**< Flag to keep track of an event when a UE
                                    first time reports RI equal to 2.
                                    */
+  
+  //Configured Grant
+  /**
+   * \brief Start the slot processing
+   * \param s the slot number
+   * Insert the future allocation if we are in transmission phase and a new packet
+   * is generated in the UE.
+   *
+   */
+  // void StartSlot_configuredGrant (const SfnSf &s);
+  //void StartVarTti_configuredGrant (const std::shared_ptr<DciInfoElementTdma> &dci);
+  void EndVarTti_configuredGrant (const std::shared_ptr<DciInfoElementTdma> &dci);
+  uint8_t m_totalGrantedSymbols {0}; //!< Total granted symbols
+  SfnSf m_SlotsGranted = SfnSf (0,0,0,GetNumerology());
+  bool m_ulPacketToTransmit{false}; //!< It indicates if a new message is generated
+                                    //!< in the transmission phase
+  std::shared_ptr<DciInfoElementTdma> m_dciGranted[100]; //!< The stored DCI-s for CG allocation.
+                                                         //!< [num] is the maximum number of
+                                                         //!< slots that can be configured
+
+  uint8_t configuredGrant_periodicity = 0; //!< Set up CG parameters: CG tx periodicity
+  uint8_t configurationTime = 0; //!< Set up CG parameters: Configuration phase
+
+
+  uint8_t cg_slot_counter = 0;
+  uint8_t cg_slot_counter_futureTx = 0;
+  std::unordered_map <uint64_t, std::shared_ptr<DciInfoElementTdma>> m_dci_cg_map;
+  std::shared_ptr<DciInfoElementTdma> m_ulDci;
+  bool m_cgScheduling = true;
+
 };
 
 }

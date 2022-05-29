@@ -449,10 +449,16 @@ NrMacSchedulerTdma::CreateUlDci (NrMacSchedulerNs3::PointInFTPlane *spoint,
   uint8_t numSym = static_cast<uint8_t> (std::max (ueInfo->m_ulRBG / numOfAssignableRbgs, 1U));
   numSym = std::min (numSym, static_cast<uint8_t> (maxSym));
 
-  NS_ASSERT (spoint->m_sym >= numSym);
+
+  // Configured Grant (Note: start the assignment by the first symbol, you have
+  // to enter a logic to do this, for example only if it is CG data, or only if
+  // it is a UL slot only.)
+  // NS_ASSERT (spoint->m_sym >= numSym);
 
   // The starting point must go backward to accomodate the needed sym
-  spoint->m_sym -= numSym;
+  // spoint->m_sym -= numSym;
+
+  //spoint->m_sym += numSym;
 
   //Due to MIMO implementation MCS and TB size are vectors
   std::vector<uint8_t> ulMcs = {ueInfo->m_ulMcs};
@@ -462,6 +468,9 @@ NrMacSchedulerTdma::CreateUlDci (NrMacSchedulerNs3::PointInFTPlane *spoint,
 
   auto dci = CreateDci (spoint, ueInfo, ulTbs, DciInfoElementTdma::UL, ulMcs,
                         ndi, rv, numSym);
+
+  //Configured Grant (Note: we update the sym start after creating DCI)
+  spoint->m_sym += numSym;
 
   // Reset the RBG (we are TDMA)
   spoint->m_rbg = 0;
@@ -535,6 +544,5 @@ NrMacSchedulerTdma::CreateDci (NrMacSchedulerNs3::PointInFTPlane *spoint,
 
   return dci;
 }
-
 
 } //namespace ns3

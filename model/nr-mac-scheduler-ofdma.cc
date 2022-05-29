@@ -42,6 +42,14 @@ NrMacSchedulerOfdma::GetTypeId (void)
                      "Number of assigned symbol per beam. Gets called every time an assignment is made",
                      MakeTraceSourceAccessor (&NrMacSchedulerOfdma::m_tracedValueSymPerBeam),
                      "ns3::TracedValueCallback::Uint32")
+
+     // Configured Grant - New schedulers (FlexTDMA, FlexOFDMA)
+     .AddAttribute ("FlexTDMA",
+                    "schedule with FlexTDMA if it is true, and with FlexOFDMA if it is false",
+                    BooleanValue (true),
+                    MakeBooleanAccessor (&NrMacSchedulerOfdma::SetScheduler,
+                                          &NrMacSchedulerOfdma::GetScheduler),
+                    MakeBooleanChecker ())
   ;
   return tid;
 }
@@ -305,6 +313,7 @@ NrMacSchedulerOfdma::AssignDLRBG (uint32_t symAvail, const ActiveUeMap &activeDl
   return symPerBeam;
 }
 
+/*
 NrMacSchedulerNs3::BeamSymbolMap
 NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl) const
 {
@@ -397,7 +406,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
     }
 
   return symPerBeam;
-}
+}*/
 
 /**
  * \brief Create the DL DCI in OFDMA mode
@@ -519,6 +528,7 @@ NrMacSchedulerOfdma::CreateDlDci (NrMacSchedulerNs3::PointInFTPlane *spoint,
   return dci;
 }
 
+/*
 std::shared_ptr<DciInfoElementTdma>
 NrMacSchedulerOfdma::CreateUlDci (PointInFTPlane *spoint,
                                       const std::shared_ptr<NrMacSchedulerUeInfo> &ueInfo,
@@ -604,7 +614,7 @@ NrMacSchedulerOfdma::CreateUlDci (PointInFTPlane *spoint,
   spoint->m_rbg = lastRbg + 1;
 
   return dci;
-}
+}*/
 
 void
 NrMacSchedulerOfdma::ChangeDlBeam (PointInFTPlane *spoint, uint32_t symOfBeam) const
@@ -625,6 +635,526 @@ NrMacSchedulerOfdma::GetTpc () const
 {
   NS_LOG_FUNCTION (this);
   return 1; // 1 is mapped to 0 for Accumulated mode, and to -1 in Absolute mode TS38.213 Table Table 7.1.1-1
+}
+
+// Configured Grant - New schedulers (FlexTDMA and FlexOFDMA)
+
+NrMacSchedulerNs3::BeamSymbolMap
+NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl) const
+{
+  NS_LOG_FUNCTION (this);
+
+  NS_LOG_DEBUG ("# beams active flows: " << activeUl.size () << ", # sym: " << symAvail);
+
+  GetFirst GetBeamId;
+  GetSecond GetUeVector;
+  BeamSymbolMap symPerBeam = GetSymPerBeam (symAvail, activeUl);
+
+  GetFirst GetUeRnti;
+  GetSecond GetRBcounter;
+  bool firstSym = true;
+
+  // Iterate through the different beams
+  for (const auto &el : activeUl)
+    {
+      uint32_t beamSym = symPerBeam.at (GetBeamId (el));
+      std::vector<UePtrAndBufferReq> ueVector;
+      FTResources assigned (0,0);
+      const std::vector<uint8_t> ulNotchedRBGsMask = GetUlNotchedRbgMask ();
+      uint32_t rbgInOneSymbol = ulNotchedRBGsMask.size () > 0 ? std::count (ulNotchedRBGsMask.begin (),
+                                                                     ulNotchedRBGsMask.end (),
+                                                                     1) : GetBandwidthInRbg ();
+
+      std::vector<SchedUeMap> ueSchedVector;
+      std::vector<SchedUeMapFirstSym> ueSchedVectorFirstSym;
+      std::vector<uint16_t> rntiOrder;
+
+      //Find the minimum RB to assign 1 TBS
+      uint32_t rbgAssignable = 2;
+      while(1)
+        {
+          if (rbgInOneSymbol%rbgAssignable == 0)
+           {
+             break;
+           }
+          else
+            {
+              rbgAssignable = rbgAssignable + 1;
+            }
+        }
+
+      uint32_t symAssignable = 1 ;
+      uint32_t resources = rbgInOneSymbol*beamSym;
+
+      NS_ASSERT (resources > 0);
+
+      for (const auto &ue : GetUeVector (el))
+        {
+          ueVector.emplace_back (ue);
+        }
+
+      for (auto & ue : ueVector)
+        {
+          BeforeUlSched (ue, FTResources (resources, beamSym));
+        }
+
+      static uint8_t nextSymbol = 1;
+      static uint8_t nextUE = 0;
+      static uint8_t initSym = 1;
+
+      int countPos = 0;
+      int initRNTIpos = 0;
+
+      while (resources > 0)
+        {
+
+          GetFirst GetUe;
+          auto schedInfoIt = ueVector.begin ();
+
+          uint32_t vectorSize = ueVector.size();
+
+          GetFirst GetFirstSym;
+          GetSecond GetUeRBGcounter;
+          GetSecond GetRB;
+          auto UeScheduling_sym = ueSchedVectorFirstSym.begin ();
+
+          // Calculate the current symbol number and select the UE to be scheduled
+          uint8_t sym = 1;
+          while (sym <= beamSym)
+            {
+              uint32_t scheduledUEs = 0;
+              if (resources > ((rbgInOneSymbol*beamSym)-(rbgInOneSymbol*sym)))
+                {
+                  if (!m_schTypeFlexTDMA)
+                    {
+                      schedInfoIt = ueVector.begin () + initRNTIpos;
+                    }
+                  else
+                    {
+                      schedInfoIt = ueVector.begin ();
+                    }
+
+                  while (schedInfoIt != ueVector.end ())
+                    {
+                      uint32_t bufQueueSize = schedInfoIt->second;
+                      if (GetUe (*schedInfoIt)->m_ulTbSize < std::max (bufQueueSize, 7U))
+                        {
+                          if (m_schTypeFlexTDMA)
+                            {
+                              if (nextSymbol < sym)
+                                {
+                                  nextSymbol ++;
+
+                                  if(ueSchedVector.size()>1)
+                                    {
+                                      GetUe (*schedInfoIt)->m_ulTbSize = 0;
+                                      GetUe (*schedInfoIt)->m_ulSym = 0;
+                                      GetUe (*schedInfoIt)->m_ulRBG = 0;
+
+                                      ueSchedVectorFirstSym.clear();
+                                      ueSchedVector.clear();
+                                      goto scheduleUE;
+                                   }
+                                }
+                              if (GetUe (*schedInfoIt)->m_ulSym == 1)
+                                {
+                                  goto scheduleUE;
+                                }
+                              else
+                                {
+                                  if (GetUe (*schedInfoIt)->m_ulSym < sym)
+                                    {
+                                      goto scheduleUE;
+                                    }
+                                }
+                            }
+
+                          if (!m_schTypeFlexTDMA)
+                            {
+                              if (sym == initSym)
+                                {
+                                  if ((ueVector.begin () + countPos) == ueVector.end())
+                                    {
+                                      countPos = initRNTIpos;
+                                    }
+
+                                  schedInfoIt = ueVector.begin () + countPos;
+
+                                  countPos++;
+                                  goto scheduleUE;
+                                }
+                              else
+                               {
+                                  nextUE = 0;
+                                  if ((GetUe (*schedInfoIt)->m_ulSym+initSym-1) < sym)
+                                    {
+                                      auto UeScheduling = ueSchedVector.begin ();
+
+                                      while (UeScheduling != ueSchedVector.end ())
+                                        {
+                                          if (GetUe (*schedInfoIt)->m_rnti == (GetUeRnti (*UeScheduling)))
+                                            {
+                                              goto scheduleUE;
+                                            }
+                                          UeScheduling++;
+                                        }
+                                    }
+                               }
+                            }
+
+                        }
+                      else
+                        {
+                          scheduledUEs ++;
+
+                          if(!m_schTypeFlexTDMA)
+                              {
+                                uint16_t vectorSizeOfUe = UeScheduling_sym->second.size();
+                                bool applyConstrain = false;
+                                bool clearSchedVector = false;
+                                if (sym == beamSym && vectorSizeOfUe>1)
+                                  {
+                                    applyConstrain = true;
+                                  }
+                                else
+                                  {
+                                    if (nextUE <= scheduledUEs)
+                                      {
+                                        if (scheduledUEs == vectorSizeOfUe)
+                                          {
+                                            if (resources == (rbgInOneSymbol*beamSym)-(rbgInOneSymbol*(sym-1)))
+                                              {
+                                                clearSchedVector = true;
+                                              }
+                                            else
+                                              {
+                                                applyConstrain = true;
+                                              }
+                                          }
+                                      }
+
+                                  }
+                                if (applyConstrain)
+                                  {
+                                   auto schedInfoUeIt = ueVector.begin ();
+                                   while (schedInfoUeIt != ueVector.end ())
+                                      {
+                                        uint16_t rntiPrueba = GetUe (*schedInfoUeIt)->m_rnti;
+                                        NS_LOG_INFO ("Rnti: "<<rntiPrueba);
+
+                                        auto ueSym = ueSchedVectorFirstSym.begin();
+                                        ueSchedVector = GetUeRBGcounter(*ueSym);
+
+                                        auto UeScheduling = ueSchedVector.begin ();
+
+                                        while (UeScheduling != ueSchedVector.end ())
+                                          {
+                                            if (GetUe (*schedInfoUeIt)->m_rnti == (GetUeRnti (*UeScheduling)))
+                                              {
+                                                if ( GetUe (*schedInfoUeIt)->m_ulRBG < ((sym-initSym+1)*GetRBcounter(*UeScheduling)))
+                                                  {
+                                                    GetUe (*schedInfoUeIt)->m_ulRBG = (sym-initSym+1)*GetRBcounter(*UeScheduling) ;
+                                                    GetUe (*schedInfoUeIt)->m_ulSym = (sym-initSym+1) ;
+                                                    assigned.m_rbg = GetUe (*schedInfoUeIt)->m_ulRBG;
+                                                    assigned.m_sym =  GetUe (*schedInfoUeIt)->m_ulSym;
+                                                    AssignedUlResources (*schedInfoUeIt, FTResources (rbgAssignable, symAssignable),
+                                                                         assigned);
+                                                  }
+                                                break;
+                                              }
+                                            UeScheduling++;
+                                          }
+                                        schedInfoUeIt++;
+                                      }
+                                      resources = (rbgInOneSymbol*beamSym)-(rbgInOneSymbol*sym);
+                                      sym++;
+                                      clearSchedVector = true;
+                                  }
+                                applyConstrain = false;
+                                if (clearSchedVector)
+                                  {
+                                    ueSchedVectorFirstSym.clear();
+                                    ueSchedVector.clear();
+                                    initSym = sym;
+                                    nextUE = scheduledUEs;
+                                    clearSchedVector = false;
+                                  }
+                              }
+                        }
+                      schedInfoIt++;
+                    }
+                  if (schedInfoIt == ueVector.end ())
+                    {
+                      if (scheduledUEs == vectorSize)
+                      {
+                        sym = beamSym+1;
+                        goto scheduleUE;
+                      }
+                      resources = (rbgInOneSymbol*beamSym)-(rbgInOneSymbol*sym);
+                    }
+                }
+                sym=sym+1;
+            }
+
+          // Schedule the selected UE
+          scheduleUE:
+
+          if (sym == beamSym+1)
+            {
+              nextUE = 0;
+              initSym = 1;
+              nextSymbol = 1;
+              break;
+            }
+
+          while (UeScheduling_sym != ueSchedVectorFirstSym.end ())
+            {
+              ueSchedVector = GetUeRBGcounter(*UeScheduling_sym);
+
+              auto UeScheduling = ueSchedVector.begin ();
+
+              while (UeScheduling != ueSchedVector.end ())
+                {
+                  if (GetUeRnti (*UeScheduling) == GetUe (*schedInfoIt)->m_rnti)
+                    {
+                      if (GetFirstSym (*UeScheduling_sym) == sym)
+                         {
+                            GetUe (*schedInfoIt)->m_ulSym = 1;
+                            GetUe (*schedInfoIt)->m_ulRBG += rbgAssignable;
+                            assigned.m_rbg += rbgAssignable;
+                            GetRBcounter(*UeScheduling) = GetUe (*schedInfoIt)->m_ulRBG  ;
+                            GetUeRBGcounter(*UeScheduling_sym)= ueSchedVector;
+
+                            resources -= rbgAssignable;
+
+                            goto UEscheduled;
+                         }
+                      else
+                        {
+                          GetUe (*schedInfoIt)->m_ulSym = (sym-(GetFirstSym (*UeScheduling_sym)))+1;
+                          // Apply constraint for FlexOFDMA: copy the same number
+                          // of RBs even if it does not need all of them.
+                          GetUe (*schedInfoIt)->m_ulRBG += GetRB(*UeScheduling);
+                          assigned.m_rbg = GetUe (*schedInfoIt)->m_ulRBG;
+
+                          resources -= GetRB(*UeScheduling);
+
+                          goto UEscheduled;
+                        }
+                    }
+                  else
+                    {
+                      UeScheduling++;
+                    }
+                }
+              if (UeScheduling == ueSchedVector.end())
+                {
+                  if (GetFirstSym (*UeScheduling_sym) == sym)
+                    {
+                      GetUe (*schedInfoIt)->m_ulSym = 1;
+                      GetUe (*schedInfoIt)->m_ulRBG += rbgAssignable;
+                      assigned.m_rbg += rbgAssignable;
+                      ueSchedVector.emplace_back(GetUe (*schedInfoIt)->m_rnti,GetUe (*schedInfoIt)->m_ulRBG );
+                      GetUeRBGcounter(*UeScheduling_sym)= ueSchedVector;
+
+                      resources -= rbgAssignable;
+
+                      rntiOrder.emplace_back(GetUe (*schedInfoIt)->m_rnti);
+
+                      goto UEscheduled;
+
+                    }
+                  UeScheduling_sym++;
+                }
+            }
+
+          // Update metrics after allocating resources to the UE
+          UEscheduled:
+
+          if (UeScheduling_sym == ueSchedVectorFirstSym.end ())
+            {
+              if (!firstSym)
+                {
+                  ueSchedVector.clear ();
+                  UeScheduling_sym ++;
+                }
+                GetUe (*schedInfoIt)->m_ulSym = 1;
+                GetUe (*schedInfoIt)->m_ulRBG += rbgAssignable;
+                assigned.m_rbg += rbgAssignable;
+                ueSchedVector.emplace_back(GetUe (*schedInfoIt)->m_rnti,GetUe (*schedInfoIt)->m_ulRBG );
+                ueSchedVectorFirstSym.emplace_back(sym,ueSchedVector);
+                resources -= rbgAssignable;
+                firstSym = false;
+
+                rntiOrder.emplace_back(GetUe (*schedInfoIt)->m_rnti);
+              }
+
+          assigned.m_sym = GetUe (*schedInfoIt)->m_ulSym;
+
+          // NS_LOG_DEBUG ("Assigned " << assigned.m_rbg <<
+          //              " UL RBG, spanned over " << symAssignable << " SYM, to UE " <<
+          //              GetUe (*schedInfoIt)->m_rnti);
+
+          NS_LOG_DEBUG ("Assigned " << GetUe (*schedInfoIt)->m_ulRBG <<
+                        " UL RBG, spanned over " << uint32_t(GetUe (*schedInfoIt)->m_ulSym) << " SYM, to UE " <<
+                        GetUe (*schedInfoIt)->m_rnti);
+
+
+          AssignedUlResources (*schedInfoIt, FTResources (rbgAssignable, symAssignable),
+                               assigned);
+
+          // Update metrics for the unsuccessful UEs (who did not get any resource in this iteration)
+          for (auto & ue : ueVector)
+            {
+              if (GetUe (ue)->m_rnti != GetUe (*schedInfoIt)->m_rnti)
+                {
+                  NotAssignedUlResources (ue, FTResources (rbgAssignable, symAssignable),
+                                          assigned);
+                }
+            }
+
+          if (assigned.m_rbg == rbgInOneSymbol)
+            {
+              assigned.m_rbg = 0;
+            }
+
+          if (resources == 0)
+            {
+              nextUE = 0;
+              initSym = 1;
+              nextSymbol = 1;
+
+              if(m_schTypeFlexTDMA && ueSchedVector.size()>1)
+                {
+                  GetUe (*schedInfoIt)->m_ulTbSize = 0;
+                  GetUe (*schedInfoIt)->m_ulSym = 0;
+                  GetUe (*schedInfoIt)->m_ulRBG = 0;
+
+                  ueSchedVectorFirstSym.clear();
+                  ueSchedVector.clear();
+               }
+
+
+            }
+        }
+    }
+
+  return symPerBeam;
+}
+
+std::shared_ptr<DciInfoElementTdma>
+NrMacSchedulerOfdma::CreateUlDci (PointInFTPlane *spoint,
+                                      const std::shared_ptr<NrMacSchedulerUeInfo> &ueInfo,
+                                      uint32_t maxSym) const
+{
+  NS_LOG_FUNCTION (this);
+
+  uint32_t tbs = m_ulAmc->CalculateTbSize (ueInfo->m_ulMcs,
+                                           ueInfo->m_ulRBG * GetNumRbPerRbg ());
+
+  // If is less than 7 (3 mac header, 2 rlc header, 2 data), then we can't
+  // transmit any new data, so don't create dci.
+  // However, to comply with the constraints imposed in the new scheduler (FlexTDMA and FlexOFDMA),
+  // this condition will not be taken into account.
+  /*
+  if (tbs < 7)
+    {
+      NS_LOG_DEBUG ("While creating DCI for UE " << ueInfo->m_rnti <<
+                    " assigned " << ueInfo->m_ulRBG << " UL RBG, but TBS < 7");
+      return nullptr;
+    }*/
+
+  // Calculate the number of RBs to be assigned per symbol
+  uint32_t RBGNum = ueInfo->m_ulRBG /ueInfo->m_ulSym ;
+  std::vector<uint8_t> rbgBitmask = GetUlNotchedRbgMask ();
+
+  if (rbgBitmask.size () == 0)
+    {
+      rbgBitmask = std::vector<uint8_t> (GetBandwidthInRbg (), 1);
+    }
+
+  NS_ASSERT (rbgBitmask.size () == GetBandwidthInRbg ());
+
+  uint32_t lastRbg = spoint->m_rbg;
+  uint32_t assigned = RBGNum;
+
+  // Required for scheduling FlexTDMA
+  if (GetBandwidthInRbg ()-lastRbg < RBGNum)
+    {
+      spoint->m_rbg = 0;
+      lastRbg = spoint->m_rbg;
+      spoint->m_sym += 1;
+
+    }
+
+  // Limit the places in which we can transmit following the starting point
+  // and the number of RBG assigned to the UE
+  for (uint32_t i = 0; i < GetBandwidthInRbg (); ++i)
+    {
+      if (i >= spoint->m_rbg && RBGNum > 0 && rbgBitmask[i] == 1)
+        {
+          RBGNum--;
+          lastRbg = i;
+        }
+      else
+        {
+          // Set to 0 the position < spoint->m_rbg OR the remaining RBG when
+          // we already assigned the number of requested RBG
+          rbgBitmask[i] = 0;
+        }
+    }
+
+  NS_ASSERT_MSG (RBGNum == 0,
+                 "If you see this message, it means that the AssignRBG and CreateDci method are unaligned");
+
+  NS_LOG_INFO ("UE " << ueInfo->m_rnti << " assigned RBG from " <<
+               static_cast<uint32_t> (spoint->m_rbg) << " to " <<
+               static_cast<uint32_t> (spoint->m_rbg + assigned) << " for " <<
+               static_cast<uint32_t> (ueInfo->m_ulSym) << " SYM.");
+
+  //Due to MIMO implementation MCS, TB size, ndi, rv, are vectors
+  std::vector<uint8_t> ulMcs = {ueInfo->m_ulMcs};
+  std::vector<uint32_t> ulTbs = {tbs};
+  std::vector<uint8_t> ndi = {1};
+  std::vector<uint8_t> rv = {0};
+
+   spoint->m_rbg = lastRbg + 1;
+
+   std::shared_ptr<DciInfoElementTdma> dci = std::make_shared<DciInfoElementTdma>
+      (ueInfo->m_rnti, DciInfoElementTdma::UL, spoint->m_sym, (ueInfo->m_ulSym), ulMcs,
+       ulTbs, ndi, rv, DciInfoElementTdma::DATA, GetBwpId (), GetTpc());
+
+   // New symbol (symbols are assigned in ascending order)
+   if (spoint->m_rbg == GetBandwidthInRbg ())
+     {
+       spoint->m_sym += ueInfo->m_ulSym;
+       spoint->m_rbg = 0;
+     }
+
+  dci->m_rbgBitmask = std::move (rbgBitmask);
+
+  std::ostringstream oss;
+  for (auto x: dci->m_rbgBitmask)
+  {
+   oss << std::to_string(x) << " ";
+  }
+  NS_LOG_INFO ("UE " << ueInfo->m_rnti << " DCI RBG mask: " << oss.str());
+
+  NS_ASSERT (std::count (dci->m_rbgBitmask.begin (), dci->m_rbgBitmask.end (), 0) != GetBandwidthInRbg ());
+
+  return dci;
+}
+
+void
+NrMacSchedulerOfdma::SetScheduler (bool v)
+{
+  m_schTypeFlexTDMA= v;
+}
+
+bool
+NrMacSchedulerOfdma::GetScheduler () const
+{
+  return m_schTypeFlexTDMA;
 }
 
 } // namespace ns3
