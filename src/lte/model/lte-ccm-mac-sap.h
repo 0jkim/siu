@@ -61,6 +61,9 @@ public:
    */
   virtual void ReportSrToScheduler (uint16_t rnti) = 0;
 
+  // Configured Grant
+  virtual void ReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid) = 0;
+
 }; // end of class LteCcmMacSapProvider
 
 
@@ -108,6 +111,9 @@ public:
    */
   virtual void NotifyPrbOccupancy (double prbOccupancy, uint8_t componentCarrierId) = 0;
 
+  // Configured Grant
+  virtual void UlReceiveCgr(uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid) = 0;
+
 }; // end of class LteCcmMacSapUser
 
 /// MemberLteCcmMacSapProvider class
@@ -124,6 +130,9 @@ public:
   // inherited from LteCcmRrcSapProvider
   virtual void ReportMacCeToScheduler (MacCeListElement_s bsr) override;
   virtual void ReportSrToScheduler (uint16_t rnti) override;
+
+  // Configured Grant
+  virtual void ReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid) override;
 
 private:
   C* m_owner; ///< the owner class
@@ -147,6 +156,13 @@ void MemberLteCcmMacSapProvider<C>::ReportSrToScheduler (uint16_t rnti)
   m_owner->DoReportSrToScheduler (rnti);
 }
 
+// Configured Grant
+template <class C>
+void MemberLteCcmMacSapProvider<C>::ReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid)
+{
+  m_owner->DoReportCgrToScheduler (rnti, bufSize, lcid);
+}
+
 /// MemberLteCcmMacSapUser class
 template <class C>
 class MemberLteCcmMacSapUser : public LteCcmMacSapUser
@@ -167,6 +183,8 @@ public:
   virtual void ReceivePdu (LteMacSapUser::ReceivePduParameters rxPduParams);
   virtual void NotifyHarqDeliveryFailure ();
 
+  // Configured Grant
+  virtual void UlReceiveCgr (uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid);
 
 private:
   C* m_owner; ///< the owner class
@@ -214,6 +232,12 @@ void MemberLteCcmMacSapUser<C>::NotifyHarqDeliveryFailure ()
   m_owner->DoNotifyHarqDeliveryFailure ();
 }
 
+// Configured Grant
+template<class C>
+void MemberLteCcmMacSapUser<C>::UlReceiveCgr (uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid)
+{
+  m_owner->DoUlReceiveCgr (rnti, componentCarrierId, bufSize, lcid);
+}
   
 } // end of namespace ns3
 
