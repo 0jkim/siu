@@ -567,6 +567,8 @@ public:
 
   void SetLCID (uint8_t lcid);
 
+  void SetTrafficP (uint8_t trafficP);
+
   /**
    * \brief Get the RNTI of this message
    * \return RNTI
@@ -577,10 +579,13 @@ public:
 
   uint8_t GetLCID (void) const;
 
+  uint8_t GetTrafficP (void) const;
+
 private:
   uint16_t m_rnti {0}; //!< RNTI
-  uint32_t m_bufSr {0};
+  uint32_t m_bufSr {0}; //!< CG Packet size
   uint8_t m_lcid {0};
+  uint8_t m_traffP {0}; //!< CG Traffic periodicity
 };
 
 }

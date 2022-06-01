@@ -413,5 +413,17 @@ NrCGRMessage::GetLCID () const
   return m_lcid;
 }
 
+void
+NrCGRMessage::SetTrafficP (uint8_t trafficP)
+{
+    m_traffP = trafficP;
+}
+
+uint8_t
+NrCGRMessage::GetTrafficP () const
+{
+  return m_traffP;
+}
+
 }
 

@@ -1365,6 +1365,7 @@ NrUeMac::SendCGR () const
   msg->SetSourceBwp (GetBwpId ());
   msg->SetRNTI (m_rnti);
   msg -> SetBufSize(GetTotalBufSize());
+  msg -> SetTrafficP(m_cgPeriod);
 
   for (auto it = m_ulBsrReceived.cbegin (); it != m_ulBsrReceived.cend (); ++it)
     {
