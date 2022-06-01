@@ -147,6 +147,43 @@ $ git pull
 At each release, we will incorporate into the master branch all the work that
 is meant to be released.
 
+## Building **Configured Grant** and **URLLC schedulers** for UL periodic transmissions code
+At this point we have the ns-3-dev repository installed and we are on version 3.36, 
+as well as 5g-lena cloned inside contrib folder. Then, you must check out in 5g-lena-cg-v2.1.y
+Apart from that, in ns-3-dev, you must apply the patch "ns-3-dev-configured-grant.patch" which 
+is in the Build_CG folder inside the contrib/nr/ folder. 
+
+1. You are in nr folder so chekcout in 5g-lena-cg-v2.1.y: 
+
+```
+git checkout 5g-lena-cg-v2.1.y
+```
+
+2. Now, we are going to apply the patch we have in the Build_CG folder
+inside ns-3-dev folder:
+
+```
+cd ../..
+patch -p1 < contrib/nr/Build_CG/ns-3-dev-configured-grant.patch 
+```
+
+3. Build the ns-3-dev and 5g-lena modules with configured grant mechanisim:
+
+```
+./ns3 configure --enable-examples
+./ns3
+```
+
+4. To test the configured grant scheduling with the new scheudlers,
+we are going to use the file inside Build_CG named test_configuredGrant.cc
+We are going to save this file in the scratch folder.
+Then we are going to create a log to see a simple configuration of configured grant.
+```
+export 'NS_LOG=ConfiguredGrant=level_all|prefix_func|prefix_time:NrUePhy=level_all|prefix_func|prefix_time:NrUeMac=level_all|prefix_func|prefix_time:NrMacSchedulerNs3=level_all|prefix_func|prefix_time:LteRlcUm=level_all|prefix_func|prefix_time:NrGnbPhy=level_all|prefix_func|prefix_time:NrGnbMac=level_all|prefix_func|prefix_time:NrMacSchedulerOfdma=level_all|prefix_func|prefix_time:NrSpectrumPhy=level_all|prefix_func|prefix_time:BwpManagerGnb=level_all|prefix_func|prefix_time:NrMacSchedulerHarqRr=level_all|prefix_func|prefix_time' 
+
+./ns3 run scratch/test_CG > ConfiguredGrant_firstTest.out 2>&1
+```
+
 ## Documentation
 
 We maintain two sources of documentation: a user manual, and the Doxygen API

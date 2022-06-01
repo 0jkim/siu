@@ -211,7 +211,7 @@ NrMacSchedulerNs3::GetTypeId (void)
                    BooleanValue (true),
                    MakeBooleanAccessor (&NrMacSchedulerNs3::SetCG,
                                         &NrMacSchedulerNs3::GetCG),
-                   MakeBooleanChecker ()
+                   MakeBooleanChecker ())
   ;
 
   return tid;
@@ -421,19 +421,6 @@ NrMacSchedulerNs3::IsSrsInFSlots () const
 {
   return m_enableSrsInFSlots;
 }
-
-void
-NrMacSchedulerNs3::EnableHarqReTx (bool enableFlag)
-{
-  m_enableHarqReTx = enableFlag;
-}
-
-bool
-NrMacSchedulerNs3::IsHarqReTxEnable () const
-{
-  return m_enableHarqReTx;
-}
-
 
 void
 NrMacSchedulerNs3::EnableHarqReTx (bool enableFlag)
