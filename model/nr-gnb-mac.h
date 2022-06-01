@@ -443,6 +443,7 @@ private:
   uint32_t bufCgr_configuredGrant[100]; //!< The buffer size of each UE
   std::list<uint32_t> m_cgrBufSizeList; //!< List of RNTI that requested a SR
   uint8_t lcid_configuredGrant;
+  uint8_t traffP_configuredGrant[100];
 
   bool m_cgScheduling = true;
   uint8_t m_configurationTime = 0;
