@@ -202,12 +202,6 @@ NrGnbPhy::GetTypeId (void)
                    MakeUintegerAccessor (&NrGnbPhy::SetConfigurationTime,
                                          &NrGnbPhy::GetConfigurationTime),
                     MakeUintegerChecker<uint8_t> ())
-    .AddAttribute ("CGPeriod",
-                  "The periodicity of configured grant transmissions",
-                   UintegerValue (10),
-                   MakeUintegerAccessor (&NrGnbPhy::SetCGPeriod,
-                                         &NrGnbPhy::GetCGPeriod),
-                   MakeUintegerChecker<uint8_t> ())
     ;
   return tid;
 
@@ -1932,18 +1926,6 @@ void
 NrGnbPhy::SetConfigurationTime (uint8_t v)
 {
   m_configurationTime = v;
-}
-
-uint8_t
-NrGnbPhy::GetCGPeriod () const
-{
-  return configurateGrant_periodicity;
-}
-
-void
-NrGnbPhy::SetCGPeriod (uint8_t v)
-{
-  configurateGrant_periodicity = v;
 }
 
 void

@@ -413,8 +413,8 @@ public:
   void SetConfigurationTime (uint8_t configurationTime);
   uint8_t GetConfigurationTime () const;
 
-  void SetCGPeriod (uint8_t CGPeriod);
-  uint8_t GetCGPeriod () const;
+  //void SetCGPeriod (uint8_t CGPeriod);
+  //uint8_t GetCGPeriod () const;
 
   void SetNUEcg (uint8_t CGPeriod);
   uint8_t GetNUEcg () const;
@@ -799,8 +799,6 @@ private:
 
   bool m_cgScheduling = true;
   uint8_t m_configurationTime = 0;
-  uint8_t configurateGrant_periodicity = 0;
-
 };
 
 }
