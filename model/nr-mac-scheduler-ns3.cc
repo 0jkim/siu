@@ -2084,6 +2084,8 @@ NrMacSchedulerNs3::DoScheduleUl (const std::vector <UlHarqInfo> &ulHarqFeedback,
      {
        // Store the corresponding TBS according to the CGR for each UE in a LCG
        DoScheduleUlresources_configuredGrant (&ulAssignationStartPoint, m_srList);
+       m_bufCgr.clear();
+       m_cgrTraffP.clear();
      }
     else
      {
@@ -2577,7 +2579,7 @@ NrMacSchedulerNs3::DoScheduleUlresources_configuredGrant (PointInFTPlane *spoint
   NS_LOG_FUNCTION (this);
   NS_ASSERT (spoint->m_rbg == 0);
 
-  auto bufSizeUeIt = m_cgrBufSize.begin ();
+  auto bufSizeUeIt = m_bufCgr.begin ();
   uint32_t bufSize ;
   uint32_t bufWithOH;
 
@@ -2588,7 +2590,7 @@ NrMacSchedulerNs3::DoScheduleUlresources_configuredGrant (PointInFTPlane *spoint
           std::vector<uint8_t> lcid = ulLcg.second -> GetLCId();
           if (lcid[0] == m_lcid_configuredGrant)
             {
-              while (bufSizeUeIt != m_cgrBufSize.end ())
+              while (bufSizeUeIt != m_bufCgr.end ())
                 {
                   bufWithOH = *bufSizeUeIt + uint32_t (8 + 2); // 2 overheadRLC and 8 BSR+Overhead
                   uint8_t bsrId = NrMacShortBsrCe::FromBytesToLevel(bufWithOH);
@@ -2625,14 +2627,22 @@ NrMacSchedulerNs3::DoSchedUlCgrInfoReq (const NrMacSchedSapProvider::SchedUlCgrI
   for (const auto & ue : params.m_srList)
     {
       NS_LOG_INFO ("UE " << ue << " asked for a CGR ");
-
       auto it = std::find (m_srList.begin(), m_srList.end(), ue);
       if (it == m_srList.end())
         {
           m_srList.push_back (ue);
         }
     }
-  m_cgrBufSize = params.bufCgr;
+
+  for (const auto & buf : params.m_bufCgr)
+    {
+      m_bufCgr.push_back (buf);
+    }
+  for (const auto & periodTraff : params.m_TraffPCgr)
+    {
+      m_cgrTraffP.push_back (periodTraff);
+    }
+  //m_cgrBufSize = params.m_bufCgr;
   m_lcid_configuredGrant = params.lcid;
   NS_ASSERT (m_srList.size () >= params.m_srList.size ());
 }

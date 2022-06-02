@@ -229,7 +229,7 @@ BwpManagerGnb::DoUlReceiveSr(uint16_t rnti, uint8_t componentCarrierId)
 //Configured Grant
 
 void
-BwpManagerGnb::DoUlReceiveCgr(uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid)
+BwpManagerGnb::DoUlReceiveCgr(uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid, uint8_t traffP)
 {
   NS_LOG_FUNCTION (this);
   NS_ASSERT (m_algorithm != nullptr);
@@ -241,7 +241,7 @@ BwpManagerGnb::DoUlReceiveCgr(uint16_t rnti, uint8_t componentCarrierId, uint32_
   NS_ABORT_IF (it == m_ccmMacSapProviderMap.end ());
 
   //m_ccmMacSapProviderMap.find (componentCarrierId)->second->ReportSrToScheduler (rnti);
-  m_ccmMacSapProviderMap.find (componentCarrierId)->second->ReportCgrToScheduler (rnti, bufSize, lcid);
+  m_ccmMacSapProviderMap.find (componentCarrierId)->second->ReportCgrToScheduler (rnti, bufSize, lcid, traffP);
 }
 
 } // end of namespace ns3

@@ -258,13 +258,6 @@ public:
 
   void SetConfigurationTime (uint8_t configurationTime);
   uint8_t GetConfigurationTime () const;
-
-  void SetCGPeriod (uint8_t CGPeriod);
-  uint8_t GetCGPeriod () const;
-
-  void SetNUEcg (uint8_t CGPeriod);
-  uint8_t GetNUEcg () const;
-
 protected:
   /**
    * \brief DoDispose method inherited from Object
@@ -350,7 +343,7 @@ private:
   void SendRar (const std::vector<BuildRarListElement_s> &rarList);
 
   //Configured Grant
-  void DoReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid);
+  void DoReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid, uint8_t traffP);
 
 private:
 
@@ -438,17 +431,17 @@ private:
   TracedCallback<const DlHarqInfo&> m_dlHarqFeedback;
 
   //Configured Grant
-  uint16_t rnti_configuredGrant[100]; //!< Stored RNTI to create SR in transmission phase
-  uint8_t componentCarrierId_configuredGrant; //!< Stored BWP Id to create SR in the transmission phase
-  uint32_t bufCgr_configuredGrant[100]; //!< The buffer size of each UE
-  std::list<uint32_t> m_cgrBufSizeList; //!< List of RNTI that requested a SR
-  uint8_t lcid_configuredGrant;
-  uint8_t traffP_configuredGrant[100];
 
+  uint8_t componentCarrierId_configuredGrant; //!< Stored BWP Id to create CGR in the transmission phase
+  std::list<uint32_t> m_cgrBufSizeList; //!< List of Buffer size for CGR
+  uint8_t lcid_configuredGrant;
   bool m_cgScheduling = true;
   uint8_t m_configurationTime = 0;
-  uint8_t m_cgPeriod = 0;
-  uint8_t m_N_UE_cg = 0;
+
+  NrMacSchedSapProvider::SchedUlCgrInfoReqParameters paramsCG_rntiSlot[100];
+  std::list<uint8_t> m_cgrTraffP;
+  SfnSf m_cgrNextTxSlot;
+  uint8_t countCG_slots = 0 ;
 };
 
 }

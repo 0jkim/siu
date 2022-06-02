@@ -956,8 +956,9 @@ private:
 
   uint8_t m_dlDataSymbolsF {0}; //!< DL Data symbols (attribute)
 
-  std::list<uint32_t> m_cgrBufSize;  //!< List of RNTI of UEs that asked for a SR
+  std::list<uint32_t> m_bufCgr;  //!< List of BufSize of UEs that asked for a CGR
   uint8_t m_lcid_configuredGrant;
+  std::list<uint8_t> m_cgrTraffP;
 
   bool m_cgScheduling;
 

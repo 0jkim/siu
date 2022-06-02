@@ -442,18 +442,6 @@ NrGnbMac::GetTypeId (void)
                    MakeUintegerAccessor (&NrGnbMac::SetConfigurationTime,
                                          &NrGnbMac::GetConfigurationTime),
                     MakeUintegerChecker<uint8_t> ())
-    .AddAttribute ("CGPeriod",
-                  "The periodicity of configured grant transmissions",
-                   UintegerValue (10),
-                   MakeUintegerAccessor (&NrGnbMac::SetCGPeriod,
-                                         &NrGnbMac::GetCGPeriod),
-                   MakeUintegerChecker<uint8_t> ())
-    .AddAttribute ("N_UE_cg",
-                  "The number of UEs used by CG for UL",
-                   UintegerValue (10),
-                   MakeUintegerAccessor (&NrGnbMac::SetNUEcg,
-                                         &NrGnbMac::GetNUEcg),
-                   MakeUintegerChecker<uint8_t> ())
   ;
   return tid;
 }
@@ -680,74 +668,82 @@ NrGnbMac::DoSlotUlIndication (const SfnSf &sfnSf, LteNrTddSlotType type)
     {
       static bool cgr_configuration = false;
       static SfnSf m_cgr_configuration = SfnSf (0,0,0,sfnSf.GetNumerology ());
-      static SfnSf m_sr_configurateGrant = SfnSf (0,0,0,sfnSf.GetNumerology ());
-      static uint8_t pos = 0;
+      static uint8_t posCG = 0;
+
       uint8_t numberOfSlot_insideOneSubframe = pow(2,(sfnSf.GetNumerology ()));
 
       // Send CGR info to the scheduler in order to allocate resources:
-      // 1) CGR for the configuration phase, we use it in order to copy the resources to reused them with configured grant
-      if (!cgr_configuration)
+      if (!cgr_configuration ||  m_currentSlot < m_cgr_configuration)
         {
           for (const auto & v : m_srRntiList)
             {
-              if(v != 0 )
-                {
-                  cgr_configuration = true;
-                }
-            }
-          if (cgr_configuration)
-            {
-              m_cgr_configuration = m_currentSlot;
               uint8_t number_slots_for_processing_configurationPeriod = 7;
               uint8_t number_slots_configuration = (m_configurationTime*numberOfSlot_insideOneSubframe)-number_slots_for_processing_configurationPeriod;
-              m_cgr_configuration.Add(number_slots_configuration);
+              if(v != 0 )
+                {
+                  if (!cgr_configuration)
+                    {
+                      // We calculate from how many slots on
+                      // the transmissions will be done using only the pre-allocated resources
+                      cgr_configuration = true;
+                      m_cgr_configuration = m_currentSlot;
+                      m_cgr_configuration.Add(number_slots_configuration);
+                      paramsCG_rntiSlot[posCG].m_snfSf = m_cgr_configuration;
+                    }
+                  else
+                    {
+                      posCG ++;
+                      m_cgrNextTxSlot = m_currentSlot;
+                      m_cgrNextTxSlot.Add(number_slots_configuration);
+                      paramsCG_rntiSlot[posCG].m_snfSf = m_cgrNextTxSlot;
+                    }
+                  paramsCG_rntiSlot[posCG].m_srList.insert (paramsCG_rntiSlot[posCG].m_srList.begin(), m_srRntiList.begin (), m_srRntiList.end ());
+                  paramsCG_rntiSlot[posCG].m_bufCgr.insert (paramsCG_rntiSlot[posCG].m_bufCgr.begin(), m_cgrBufSizeList.begin (), m_cgrBufSizeList.end ());
+                  paramsCG_rntiSlot[posCG].m_TraffPCgr.insert (paramsCG_rntiSlot[posCG].m_TraffPCgr.begin(), m_cgrTraffP.begin (), m_cgrTraffP.end ());
+                  paramsCG_rntiSlot[posCG].lcid = lcid_configuredGrant;
+                  countCG_slots = posCG;
+                  break;
+                }
             }
         }
+      else
+       {
+          posCG = 0;
+          while (posCG <= countCG_slots)
+            {
+              if (paramsCG_rntiSlot[posCG].m_snfSf == m_currentSlot)
+               {
+                  auto rntiIt = paramsCG_rntiSlot[posCG].m_srList.begin ();
+                  auto bufIt = paramsCG_rntiSlot[posCG].m_bufCgr.begin ();
+                  auto traffPIt = paramsCG_rntiSlot[posCG].m_TraffPCgr.begin ();
+                  while (rntiIt != paramsCG_rntiSlot[posCG].m_srList.end ())
+                   {
+                      m_ccmMacSapUser->UlReceiveCgr (*rntiIt, componentCarrierId_configuredGrant, *bufIt,lcid_configuredGrant,*traffPIt);
+                      m_cgrNextTxSlot = m_currentSlot;
+                      uint8_t number_slots_configurateGrantPeriod = *traffPIt*numberOfSlot_insideOneSubframe;
+                      m_cgrNextTxSlot.Add(number_slots_configurateGrantPeriod);
+                      paramsCG_rntiSlot[posCG].m_snfSf = m_cgrNextTxSlot;
+                      rntiIt++;
+                      bufIt++;
+                      traffPIt++;
+                   }
+                 posCG = 0;
+                 break;
+               }
+              posCG ++;
+            }
+       }
 
       {
         NrMacSchedSapProvider::SchedUlCgrInfoReqParameters params;
-
-        // 2) For the first packet using configured grant after configuration phase,
-        // in ACTIVE_CG and SCH_CG_DATA states in the UE.
-        if (m_cgr_configuration == m_currentSlot && cgr_configuration)
-          {
-            m_sr_configurateGrant = m_cgr_configuration;
-            uint8_t number_slots_configurateGrantPeriod = m_cgPeriod*numberOfSlot_insideOneSubframe;
-            m_sr_configurateGrant.Add(number_slots_configurateGrantPeriod);
-            while (pos <= m_N_UE_cg)
-              {
-                m_ccmMacSapUser->UlReceiveCgr (rnti_configuredGrant[pos], componentCarrierId_configuredGrant, bufCgr_configuredGrant[pos],lcid_configuredGrant);
-                pos ++;
-                if(pos > m_N_UE_cg)
-                  {
-                    pos =0;
-                    break;
-                  }
-              }
-          }
-
-        // 3) For configured grant phase after sending the first configured grant packet
-        if(m_sr_configurateGrant == m_currentSlot && cgr_configuration){
-            //Configured grant (time in slots), example: If numerology = 1 and if period = 1ms, then the configuration period in slots is 2.
-            uint8_t number_slots_configurateGrantPeriod = m_cgPeriod*numberOfSlot_insideOneSubframe;
-            m_sr_configurateGrant.Add(number_slots_configurateGrantPeriod);
-            while (pos <= m_N_UE_cg){
-                m_ccmMacSapUser->UlReceiveCgr (rnti_configuredGrant[pos], componentCarrierId_configuredGrant,bufCgr_configuredGrant[pos],lcid_configuredGrant);
-                pos ++;
-                if(pos > m_N_UE_cg){
-                    pos =0;
-                    break;
-                }
-            }
-        }
-
         params.m_snfSf = m_currentSlot;
         params.m_srList.insert (params.m_srList.begin(), m_srRntiList.begin (), m_srRntiList.end ());
-        m_srRntiList.clear();
-
-        //Create a list of bufCgr
-        params.bufCgr = m_cgrBufSizeList;
+        params.m_bufCgr.insert(params.m_bufCgr.begin(), m_cgrBufSizeList.begin (), m_cgrBufSizeList.end ());
         params.lcid = lcid_configuredGrant;
+        params.m_TraffPCgr.insert (params.m_TraffPCgr.begin(), m_cgrTraffP.begin (), m_cgrTraffP.end ());
+        m_srRntiList.clear();
+        m_cgrBufSizeList.clear();
+        m_cgrTraffP.clear();
 
         m_macSchedSapProvider->SchedUlCgrInfoReq (params);
       }
@@ -1011,23 +1007,14 @@ NrGnbMac::DoReceiveControlMessage  (Ptr<NrControlMessage> msg)
 {
   NS_LOG_FUNCTION (this << msg);
 
-  static uint8_t cont = 0;
-
   switch (msg->GetMessageType ())
     {
     case(NrControlMessage::CGR): // Configured Grant Request
       {
         Ptr<NrCGRMessage> cgr = DynamicCast<NrCGRMessage> (msg);
-        // Stores the RNTI and BWP id for future transmissions (configured grant).
-        rnti_configuredGrant[cont] = cgr->GetRNTI();
         componentCarrierId_configuredGrant = GetBwpId();
-        bufCgr_configuredGrant [cont] = cgr->GetBufSize();
         lcid_configuredGrant = cgr->GetLCID();
-
-        NS_LOG_INFO("Buffer size = "<<bufCgr_configuredGrant [cont]);
-
-        m_ccmMacSapUser-> UlReceiveCgr (cgr->GetRNTI (), GetBwpId (), cgr->GetBufSize(), cgr->GetLCID());
-        cont ++;
+        m_ccmMacSapUser-> UlReceiveCgr (cgr->GetRNTI (), GetBwpId (), cgr->GetBufSize(), cgr->GetLCID(), cgr->GetTrafficP());
         break;
       }
     case (NrControlMessage::SR):
@@ -1645,18 +1632,6 @@ NrGnbMac::SetConfigurationTime (uint8_t v)
   m_configurationTime = v;
 }
 
-uint8_t
-NrGnbMac::GetCGPeriod () const
-{
-  return m_cgPeriod;
-}
-
-void
-NrGnbMac::SetCGPeriod (uint8_t v)
-{
-  m_cgPeriod = v;
-}
-
 void
 NrGnbMac::SetCG (bool CGsch)
 {
@@ -1669,26 +1644,15 @@ NrGnbMac::GetCG () const
   return m_cgScheduling;
 }
 
-uint8_t
-NrGnbMac::GetNUEcg () const
-{
-  return m_N_UE_cg;
-}
-
 void
-NrGnbMac::SetNUEcg (uint8_t v)
-{
-  m_N_UE_cg = v;
-}
-
-void
-NrGnbMac::DoReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid)
+NrGnbMac::DoReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid, uint8_t traffP)
 {
   NS_LOG_FUNCTION (this);
   m_srRntiList.push_back (rnti);
   m_srCallback (GetBwpId (), rnti);
   m_cgrBufSizeList.push_back (bufSize);
   lcid_configuredGrant = lcid;
+  m_cgrTraffP.push_back(traffP);
 }
 
 }

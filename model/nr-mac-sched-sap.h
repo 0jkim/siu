@@ -186,8 +186,10 @@ public:
   {
     SfnSf m_snfSf;                                 //!< SnfSf in which the sr where received
     std::vector<uint16_t> m_srList;                //!< List of RNTI which asked for a SR
-    std::list<uint32_t> bufCgr;
+    //std::list<uint32_t> bufCgr;
+    std::vector<uint32_t> m_bufCgr;
     uint8_t lcid;
+    std::vector<uint8_t> m_TraffPCgr;
   };
 
   virtual void SchedUlCgrInfoReq (const SchedUlCgrInfoReqParameters &params) = 0;
