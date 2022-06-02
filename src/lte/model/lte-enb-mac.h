@@ -355,7 +355,7 @@ private:
   }
   
   // Configured Grant
-  void DoReportCgrToScheduler ([[maybe_unused]] uint16_t rnti, [[maybe_unused]] uint32_t bufSize, [[maybe_unused]] uint8_t lcid)
+  void DoReportCgrToScheduler ([[maybe_unused]] uint16_t rnti, [[maybe_unused]] uint32_t bufSize, [[maybe_unused]] uint8_t lcid, [[maybe_unused]] uint8_t traffP)
   {
   }
 
