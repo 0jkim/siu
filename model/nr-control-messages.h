@@ -569,6 +569,10 @@ public:
 
   void SetTrafficP (uint8_t trafficP);
 
+  void SetTrafficTimeInit (Time traffStartTime);
+
+  void SetTrafficDeadline (Time traffDeadlineTime);
+
   /**
    * \brief Get the RNTI of this message
    * \return RNTI
@@ -581,11 +585,17 @@ public:
 
   uint8_t GetTrafficP (void) const;
 
+  Time GetTrafficTimeInit (void) const;
+
+  Time GetTrafficDeadline (void) const;
+
 private:
   uint16_t m_rnti {0}; //!< RNTI
   uint32_t m_bufSr {0}; //!< CG Packet size
   uint8_t m_lcid {0};
   uint8_t m_traffP {0}; //!< CG Traffic periodicity
+  Time m_traffStartTime; //!< CG Traffic generation time
+  Time m_traffDeadlineTime; //!< CG Traffic maximum deadline
 };
 
 }

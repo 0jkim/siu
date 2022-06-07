@@ -425,5 +425,29 @@ NrCGRMessage::GetTrafficP () const
   return m_traffP;
 }
 
+void
+NrCGRMessage::SetTrafficTimeInit (Time traffStartTime)
+{
+    m_traffStartTime = traffStartTime;
+}
+
+Time
+NrCGRMessage::GetTrafficTimeInit () const
+{
+  return m_traffStartTime;
+}
+
+void
+NrCGRMessage::SetTrafficDeadline (Time traffDeadlineTime)
+{
+    m_traffDeadlineTime = traffDeadlineTime;
+}
+
+Time
+NrCGRMessage::GetTrafficDeadline () const
+{
+  return m_traffDeadlineTime;
+}
+
 }
 

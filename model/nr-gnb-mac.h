@@ -343,7 +343,7 @@ private:
   void SendRar (const std::vector<BuildRarListElement_s> &rarList);
 
   //Configured Grant
-  void DoReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid, uint8_t traffP);
+  void DoReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid, uint8_t traffP, Time traffInit, Time traffDeadline);
 
 private:
 
@@ -440,6 +440,8 @@ private:
 
   NrMacSchedSapProvider::SchedUlCgrInfoReqParameters paramsCG_rntiSlot[100];
   std::list<uint8_t> m_cgrTraffP;
+  std::list<Time> m_cgrTraffInit;
+  std::list<Time> m_cgrTraffDeadline;
   SfnSf m_cgrNextTxSlot;
   uint8_t countCG_slots = 0 ;
 };

@@ -138,7 +138,7 @@ protected:
   virtual std::vector<LteCcmRrcSapProvider::LcsConfig> DoSetupDataRadioBearer (EpsBearer bearer, uint8_t bearerId, uint16_t rnti, uint8_t lcid, uint8_t lcGroup, LteMacSapUser* msu) override;
 
   // Configured Grant
-  virtual void DoUlReceiveCgr (uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid, uint8_t traffP) override;
+  virtual void DoUlReceiveCgr (uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid, uint8_t traffP, Time traffInit, Time traffDeadline) override;
 
 private:
   /**

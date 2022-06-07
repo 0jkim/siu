@@ -281,6 +281,9 @@ public:
   uint32_t m_srsOffset {0};      //!< SRS offset
   uint8_t m_startMcsDlUe {0}; //!< Starting DL MCS to be used
 
+  // Configured Grant
+  Time m_trafficInit;
+  Time m_trafficDeadline;
 protected:
   /**
    * \brief Retrieve the number of RB per RBG

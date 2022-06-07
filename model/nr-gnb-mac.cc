@@ -701,6 +701,8 @@ NrGnbMac::DoSlotUlIndication (const SfnSf &sfnSf, LteNrTddSlotType type)
                   paramsCG_rntiSlot[posCG].m_bufCgr.insert (paramsCG_rntiSlot[posCG].m_bufCgr.begin(), m_cgrBufSizeList.begin (), m_cgrBufSizeList.end ());
                   paramsCG_rntiSlot[posCG].m_TraffPCgr.insert (paramsCG_rntiSlot[posCG].m_TraffPCgr.begin(), m_cgrTraffP.begin (), m_cgrTraffP.end ());
                   paramsCG_rntiSlot[posCG].lcid = lcid_configuredGrant;
+                  paramsCG_rntiSlot[posCG].m_TraffInitCgr.insert (paramsCG_rntiSlot[posCG].m_TraffInitCgr.begin(), m_cgrTraffInit.begin (), m_cgrTraffInit.end ());
+                  paramsCG_rntiSlot[posCG].m_TraffDeadlineCgr.insert (paramsCG_rntiSlot[posCG].m_TraffDeadlineCgr.begin(), m_cgrTraffDeadline.begin (), m_cgrTraffDeadline.end ());
                   countCG_slots = posCG;
                   break;
                 }
@@ -716,9 +718,11 @@ NrGnbMac::DoSlotUlIndication (const SfnSf &sfnSf, LteNrTddSlotType type)
                   auto rntiIt = paramsCG_rntiSlot[posCG].m_srList.begin ();
                   auto bufIt = paramsCG_rntiSlot[posCG].m_bufCgr.begin ();
                   auto traffPIt = paramsCG_rntiSlot[posCG].m_TraffPCgr.begin ();
+                  auto traffInitIt = paramsCG_rntiSlot[posCG].m_TraffInitCgr.begin ();
+                  auto traffDeadlineIt = paramsCG_rntiSlot[posCG].m_TraffDeadlineCgr.begin ();
                   while (rntiIt != paramsCG_rntiSlot[posCG].m_srList.end ())
                    {
-                      m_ccmMacSapUser->UlReceiveCgr (*rntiIt, componentCarrierId_configuredGrant, *bufIt,lcid_configuredGrant,*traffPIt);
+                      m_ccmMacSapUser->UlReceiveCgr (*rntiIt, componentCarrierId_configuredGrant, *bufIt,lcid_configuredGrant,*traffPIt, *traffInitIt, *traffDeadlineIt);
                       m_cgrNextTxSlot = m_currentSlot;
                       uint8_t number_slots_configurateGrantPeriod = *traffPIt*numberOfSlot_insideOneSubframe;
                       m_cgrNextTxSlot.Add(number_slots_configurateGrantPeriod);
@@ -741,9 +745,13 @@ NrGnbMac::DoSlotUlIndication (const SfnSf &sfnSf, LteNrTddSlotType type)
         params.m_bufCgr.insert(params.m_bufCgr.begin(), m_cgrBufSizeList.begin (), m_cgrBufSizeList.end ());
         params.lcid = lcid_configuredGrant;
         params.m_TraffPCgr.insert (params.m_TraffPCgr.begin(), m_cgrTraffP.begin (), m_cgrTraffP.end ());
+        params.m_TraffInitCgr.insert (params.m_TraffInitCgr.begin(), m_cgrTraffInit.begin (), m_cgrTraffInit.end ());
+        params.m_TraffDeadlineCgr.insert (params.m_TraffDeadlineCgr.begin(), m_cgrTraffDeadline.begin (), m_cgrTraffDeadline.end ());
         m_srRntiList.clear();
         m_cgrBufSizeList.clear();
         m_cgrTraffP.clear();
+        m_cgrTraffDeadline.clear();
+        m_cgrTraffInit.clear();
 
         m_macSchedSapProvider->SchedUlCgrInfoReq (params);
       }
@@ -1014,7 +1022,7 @@ NrGnbMac::DoReceiveControlMessage  (Ptr<NrControlMessage> msg)
         Ptr<NrCGRMessage> cgr = DynamicCast<NrCGRMessage> (msg);
         componentCarrierId_configuredGrant = GetBwpId();
         lcid_configuredGrant = cgr->GetLCID();
-        m_ccmMacSapUser-> UlReceiveCgr (cgr->GetRNTI (), GetBwpId (), cgr->GetBufSize(), cgr->GetLCID(), cgr->GetTrafficP());
+        m_ccmMacSapUser-> UlReceiveCgr (cgr->GetRNTI (), GetBwpId (), cgr->GetBufSize(), cgr->GetLCID(), cgr->GetTrafficP(), cgr->GetTrafficTimeInit(), cgr->GetTrafficDeadline());
         break;
       }
     case (NrControlMessage::SR):
@@ -1645,7 +1653,7 @@ NrGnbMac::GetCG () const
 }
 
 void
-NrGnbMac::DoReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid, uint8_t traffP)
+NrGnbMac::DoReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid, uint8_t traffP, Time traffInit, Time traffDeadline)
 {
   NS_LOG_FUNCTION (this);
   m_srRntiList.push_back (rnti);
@@ -1653,6 +1661,8 @@ NrGnbMac::DoReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid,
   m_cgrBufSizeList.push_back (bufSize);
   lcid_configuredGrant = lcid;
   m_cgrTraffP.push_back(traffP);
+  m_cgrTraffInit.push_back(traffInit);
+  m_cgrTraffDeadline.push_back(traffDeadline);
 }
 
 }
