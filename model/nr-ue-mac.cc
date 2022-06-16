@@ -244,7 +244,7 @@ NrUeMac::GetTypeId (void)
                   MakeBooleanChecker ())
     .AddAttribute ("ConfigurationTime",
                   "Time required to configure UE with configured grant signal",
-                   UintegerValue (10),
+                   UintegerValue (30),
                    MakeUintegerAccessor (&NrUeMac::SetConfigurationTime,
                                          &NrUeMac::GetConfigurationTime),
                    MakeUintegerChecker<uint8_t> ())
@@ -428,6 +428,17 @@ NrUeMac::DoReportBufferStatus (LteMacSapProvider::ReportBufferStatusParameters p
         {
           NS_LOG_INFO ("INACTIVE -> TO_SEND, bufSize " << GetTotalBufSize ());
           m_srState_configuredGrant = TO_SEND_CGR;
+          if (params.rnti == 4)// Esto lo teno que cambiar, va a ser variable pero por ahroa
+              // solo para probar
+          {
+            m_traffDeadlineTime =  MicroSeconds(200); //80
+          }
+          else
+          {
+            m_traffDeadlineTime = MicroSeconds(150); //60
+          }
+          m_traffStartTime = Simulator::Now();
+          m_trafficPeriodicity = params.periodicity;
         }
 
       if (m_srState_configuredGrant == ACTIVE_CG)
@@ -1186,6 +1197,21 @@ NrUeMac::DoSlotIndication_configuredGrant (const SfnSf &sfn)
       uint32_t bufSr = GetTotalBufSize();
       NS_LOG_INFO ("Sending CGR to PHY in slot " << sfn <<", changes the state"
                    ": TO_SEND_CGR -> TO_RECEIVE_CG, with bufSr: "<< bufSr);
+      if (Simulator::Now() == m_traffStartTime )
+      {
+          m_traffStartTime = m_traffStartTime - Simulator::Now();
+      }
+      else
+      {
+        m_traffStartTime = m_traffStartTime - m_startSlotTime ;
+      }
+      //m_traffDeadlineTime = m_traffDeadlineTime + m_startSlotTime;
+      std::cout << "nanoseconds since epoch StartSlot: "
+                                << m_startSlotTime<<
+                                "  InitTime: "
+                                << m_traffStartTime<<
+                                "  DeadlineTime"
+                                <<m_traffDeadlineTime<<'\n';
       // UE MAC sends CGR to PHY in order to send to the gNB
       SendCGR();
 
@@ -1246,6 +1272,7 @@ NrUeMac::DoSlotIndication_configuredGrant (const SfnSf &sfn)
     }
   else
     {
+      m_startSlotTime = Simulator::Now ();
       configuredGrant_state = false;
       return configuredGrant_state;
     }
@@ -1365,7 +1392,9 @@ NrUeMac::SendCGR () const
   msg->SetSourceBwp (GetBwpId ());
   msg->SetRNTI (m_rnti);
   msg -> SetBufSize(GetTotalBufSize());
-  msg -> SetTrafficP(m_cgPeriod);
+  msg -> SetTrafficP(m_trafficPeriodicity);
+  msg -> SetTrafficTimeInit(m_traffStartTime);
+  msg -> SetTrafficDeadline(m_traffDeadlineTime);
 
   for (auto it = m_ulBsrReceived.cbegin (); it != m_ulBsrReceived.cend (); ++it)
     {

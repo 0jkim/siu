@@ -570,6 +570,10 @@ private:
   uint8_t m_configurationTime = 0;
   uint8_t m_cgPeriod = 0;
 
+  Time m_traffStartTime;
+  Time m_traffDeadlineTime;
+  Time m_startSlotTime;
+  uint8_t m_trafficPeriodicity;
 };
 
 }
