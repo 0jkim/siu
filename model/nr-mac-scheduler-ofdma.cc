@@ -352,7 +352,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
       while (resources > 0)
         {
           GetFirst GetUe;
-          std::sort (ueVector.begin (), ueVector.end (), GetUeCompareUlFn ());
+          std::sort (ueVector.begin (), ueVector.end (), GetUeCompareUlFn ()); //Comment out this line to assign the packets in order
           auto schedInfoIt = ueVector.begin ();
 
           // Ensure fairness: pass over UEs which already has enough resources to transmit
@@ -671,7 +671,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
 
       //Find the minimum RB to assign 1 TBS
       uint32_t rbgAssignable = 2;
-      while(1)
+      /*while(1)
         {
           if (rbgInOneSymbol%rbgAssignable == 0)
            {
@@ -681,7 +681,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
             {
               rbgAssignable = rbgAssignable + 1;
             }
-        }
+        }*/
 
       uint32_t symAssignable = 1 ;
       uint32_t resources = rbgInOneSymbol*beamSym;
@@ -723,7 +723,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
           while (sym <= beamSym)
             {
               uint32_t scheduledUEs = 0;
-              if (resources > ((rbgInOneSymbol*beamSym)-(rbgInOneSymbol*sym)))
+              if (resources-1 > ((rbgInOneSymbol*beamSym)-(rbgInOneSymbol*sym)))
                 {
                   if (!m_schTypeFlexTDMA)
                     {
@@ -878,6 +878,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                                     initSym = sym;
                                     nextUE = scheduledUEs;
                                     clearSchedVector = false;
+                                    initRNTIpos = countPos;
                                   }
                               }
                         }
@@ -1013,7 +1014,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                 }
             }
 
-          if (assigned.m_rbg == rbgInOneSymbol)
+          if (assigned.m_rbg == rbgInOneSymbol || assigned.m_rbg == rbgInOneSymbol-1)
             {
               assigned.m_rbg = 0;
             }
