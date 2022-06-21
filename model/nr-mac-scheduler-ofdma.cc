@@ -892,6 +892,10 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                                     nextUE = scheduledUEs;
                                     clearSchedVector = false;
                                     initRNTIpos = countPos;
+                                    if (initRNTIpos == ueVector.size())
+                                    {
+                                        rbgAssignable = 2;
+                                    }
                                   }
                               }
                         }
