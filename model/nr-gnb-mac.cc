@@ -264,6 +264,8 @@ public:
   virtual uint16_t GetCellId () const override;
   virtual uint32_t GetSymbolsPerSlot () const override;
   virtual Time GetSlotPeriod () const override;
+  // Configured Grant
+  virtual Time GetTbUlEncodeLatency () const override;
 private:
   NrGnbMac* m_mac;
 };
@@ -320,6 +322,13 @@ Time
 NrMacMemberMacSchedSapUser::GetSlotPeriod() const
 {
   return m_mac->m_phySapProvider->GetSlotPeriod ();
+}
+
+// Configured Grant
+Time
+NrMacMemberMacSchedSapUser::GetTbUlEncodeLatency() const
+{
+  return m_mac->m_phySapProvider->GetTbUlEncodeLatency ();
 }
 
 class NrMacMemberMacCschedSapUser : public NrMacCschedSapUser
@@ -1022,6 +1031,7 @@ NrGnbMac::DoReceiveControlMessage  (Ptr<NrControlMessage> msg)
         Ptr<NrCGRMessage> cgr = DynamicCast<NrCGRMessage> (msg);
         componentCarrierId_configuredGrant = GetBwpId();
         lcid_configuredGrant = cgr->GetLCID();
+        Time trafficInAndEncode = cgr->GetTrafficTimeInit() + m_phySapProvider->GetTbUlEncodeLatency();
         m_ccmMacSapUser-> UlReceiveCgr (cgr->GetRNTI (), GetBwpId (), cgr->GetBufSize(), cgr->GetLCID(), cgr->GetTrafficP(), cgr->GetTrafficTimeInit(), cgr->GetTrafficDeadline());
         break;
       }

@@ -277,6 +277,8 @@ public:
    */
   virtual Time GetSlotPeriod () const = 0;
 
+  // Configured Grant
+  virtual Time GetTbUlEncodeLatency () const = 0;
 };
 
 std::ostream & operator<< (std::ostream & os, NrMacSchedSapProvider::SchedDlRlcBufferReqParameters const & p);

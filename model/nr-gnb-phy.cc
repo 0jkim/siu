@@ -190,6 +190,7 @@ NrGnbPhy::GetTypeId (void)
                      "Resource Block used for data: SfnSf, symbol, RB PHY map, bwp ID, cell ID",
                      MakeTraceSourceAccessor (&NrGnbPhy::m_rbStatistics),
                      "ns3::NrGnbPhy::RBStatsTracedCallback")
+    // Configured Grant
     .AddAttribute ("CG",
                   "Activate configured grant scheduling for UL periodic transmissions",
                   BooleanValue (true),
@@ -202,6 +203,13 @@ NrGnbPhy::GetTypeId (void)
                    MakeUintegerAccessor (&NrGnbPhy::SetConfigurationTime,
                                          &NrGnbPhy::GetConfigurationTime),
                     MakeUintegerChecker<uint8_t> ())
+    .AddAttribute ("TbUlEncodeLatency",
+                   "Transport block encode latency for UL data (only for CG scheduling"
+                   "for dynamic scheduling use N2Delay)",
+                    TimeValue (MicroSeconds (100)),
+                    MakeTimeAccessor (&NrPhy::SetTbUlEncodeLatency,
+                                      &NrPhy::GetTbUlEncodeLatency),
+                    MakeTimeChecker ())
     ;
   return tid;
 

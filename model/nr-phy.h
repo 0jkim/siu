@@ -413,6 +413,11 @@ public:
    */
   enum NrSpectrumValueHelper::PowerAllocationType GetPowerAllocationType () const;
 
+  // Configured Grant
+  virtual Time GetTbUlEncodeLatency () const;
+  virtual void SetTbUlEncodeLatency (const Time &us);
+
+
 protected:
   /**
    * \brief DoDispose method inherited from Object
@@ -608,6 +613,9 @@ private:
   uint32_t m_rbNum {0};                         //!< number of resource blocks within the channel bandwidth
   double m_rbOh {0.04};                         //!< Overhead for the RB calculation
   enum NrSpectrumValueHelper::PowerAllocationType m_powerAllocationType {NrSpectrumValueHelper::UNIFORM_POWER_ALLOCATION_USED}; //!< The type of power allocation, supported modes to distribute power uniformly over all RBs, or only used RBs
+
+  // Configured Grant
+  Time m_tbUlEncodeLatencyUs {MicroSeconds(100)};
 };
 
 } // namespace ns3

@@ -72,6 +72,9 @@ public:
 
   virtual uint32_t GetRbNum () const override;
 
+  // Configured Grant
+  virtual Time GetTbUlEncodeLatency () const override;
+
 private:
   NrPhy* m_phy;
 };
@@ -152,6 +155,13 @@ uint32_t
 NrMemberPhySapProvider::GetRbNum () const
 {
   return m_phy->GetRbNum ();
+}
+
+// Configured Grant
+Time
+NrMemberPhySapProvider::GetTbUlEncodeLatency() const
+{
+  return m_phy-> GetTbUlEncodeLatency();
 }
 
 /* ======= */
@@ -909,6 +919,18 @@ Time
 NrPhy::GetTbDecodeLatency (void) const
 {
   return m_tbDecodeLatencyUs;
+}
+
+void
+NrPhy::SetTbUlEncodeLatency (const Time &us)
+{
+  m_tbUlEncodeLatencyUs = us;
+}
+
+Time
+NrPhy::GetTbUlEncodeLatency (void) const
+{
+  return m_tbUlEncodeLatencyUs;
 }
 
 

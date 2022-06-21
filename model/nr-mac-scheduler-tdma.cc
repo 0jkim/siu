@@ -153,7 +153,7 @@ NrMacSchedulerTdma::AssignRBGTDMA (uint32_t symAvail, const ActiveUeMap &activeU
 
       auto schedInfoIt = ueVector.begin ();
 
-     std::sort (ueVector.begin (), ueVector.end (), GetCompareFn ()); //Comment out this line to assign the packets in order
+    // std::sort (ueVector.begin (), ueVector.end (), GetCompareFn ()); //Comment out this line to assign the packets in order
 
       // Ensure fairness: pass over UEs which already has enough resources to transmit
       while (schedInfoIt != ueVector.end ())

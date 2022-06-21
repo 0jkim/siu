@@ -146,6 +146,8 @@ public:
    */
   virtual uint32_t GetRbNum () const = 0;
 
+  // Configured Grant
+  virtual Time GetTbUlEncodeLatency () const = 0;
 };
 
 /**
