@@ -352,7 +352,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
       while (resources > 0)
         {
           GetFirst GetUe;
-          std::sort (ueVector.begin (), ueVector.end (), GetUeCompareUlFn ()); //Comment out this line to assign the packets in order
+          //std::sort (ueVector.begin (), ueVector.end (), GetUeCompareUlFn ()); //Comment out this line to assign the packets in order
           auto schedInfoIt = ueVector.begin ();
 
           // Ensure fairness: pass over UEs which already has enough resources to transmit
@@ -670,18 +670,31 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
       std::vector<uint16_t> rntiOrder;
 
       //Find the minimum RB to assign 1 TBS
+      // We could find the optimal RB to assign
+
       uint32_t rbgAssignable = 2;
-      /*while(1)
-        {
-          if (rbgInOneSymbol%rbgAssignable == 0)
+      if (!m_schTypeFlexTDMA)
+      {
+          while(1)
            {
-             break;
+             if (rbgInOneSymbol%rbgAssignable == 0)
+              {
+                 rbgAssignable = rbgInOneSymbol/rbgAssignable;
+                break;
+              }
+             else
+               {
+                 rbgAssignable = rbgAssignable + 1;
+               }
            }
-          else
-            {
-              rbgAssignable = rbgAssignable + 1;
-            }
-        }*/
+
+          if (rbgAssignable == rbgInOneSymbol)
+          {
+              rbgAssignable = (rbgInOneSymbol-1)/2;
+              break;
+          }
+      }
+
 
       uint32_t symAssignable = 1 ;
       uint32_t resources = rbgInOneSymbol*beamSym;
@@ -900,7 +913,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
           // Schedule the selected UE
           scheduleUE:
 
-          if (sym == beamSym+1)
+          if (sym >= beamSym+1)
             {
               nextUE = 0;
               initSym = 1;
