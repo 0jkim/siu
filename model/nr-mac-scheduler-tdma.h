@@ -218,6 +218,9 @@ protected:
   BeforeUlSched (const UePtrAndBufferReq &ue,
                  const FTResources &assignableInIteration) const = 0;
 
+  // Configured Grant
+  virtual uint8_t GetScheduler () const override;
+
 private:
   /**
    * \brief Retrieve the UE vector from an ActiveUeMap

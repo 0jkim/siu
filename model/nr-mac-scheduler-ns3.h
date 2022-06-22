@@ -754,6 +754,9 @@ protected:
     uint32_t m_bytes {0};  //!< Bytes assigned to the LC
   };
 
+  // Configured Grant
+  virtual uint8_t GetScheduler () const = 0;;
+
 protected:
   Ptr<NrAmc> m_dlAmc; //!< AMC pointer
   Ptr<NrAmc> m_ulAmc; //!< AMC pointer

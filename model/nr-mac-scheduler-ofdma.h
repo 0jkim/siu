@@ -81,8 +81,8 @@ public:
   }
 
   // Configured Grant
-  void SetScheduler (bool v);
-  bool GetScheduler () const;
+  void SetScheduler (uint8_t v);
+
 
 protected:
   virtual BeamSymbolMap
@@ -114,11 +114,14 @@ protected:
 
   virtual uint8_t GetTpc () const override;
 
+  // Configured Grant
+  virtual uint8_t GetScheduler () const override;
+
 private:
 
   TracedValue<uint32_t> m_tracedValueSymPerBeam;
 
   // Configured Grant
-  bool m_schTypeFlexTDMA {true}; //!< DL Data symbols (attribute)
+  uint8_t m_schTypeFlexTDMA {2}; //!<
 };
 } // namespace ns3

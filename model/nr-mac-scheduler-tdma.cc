@@ -545,4 +545,10 @@ NrMacSchedulerTdma::CreateDci (NrMacSchedulerNs3::PointInFTPlane *spoint,
   return dci;
 }
 
+uint8_t
+NrMacSchedulerTdma::GetScheduler () const
+{
+  return 1;
+}
+
 } //namespace ns3

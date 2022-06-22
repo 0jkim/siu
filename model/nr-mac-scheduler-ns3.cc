@@ -1676,6 +1676,27 @@ NrMacSchedulerNs3::DoScheduleUlData (PointInFTPlane *spoint, uint32_t symAvail,
 
           std::shared_ptr<DciInfoElementTdma> dci = CreateUlDci (spoint, ue.first, symPerBeam.at (GetBeam (beam)));
 
+          // Only if it is type FLexTDMA or FLexOFDMA (meter alguna restricción para no utilizarlo si es OFDMA y TDMA)
+          uint8_t FlexTDMA = GetScheduler();
+          std::cout << "Scheduler Type (1 = OFDMA or TDMA, 2 = FlexTDMA, 3 = FlexOFDMA): "<< uint32_t(FlexTDMA)<<'\n';
+          if (FlexTDMA != 1) //1 is for OFDMA and TDMA, 2 is for FlexTDMA and 3 is for FlexOFDMA
+          {
+              if (GetBandwidthInRbg ()-spoint->m_rbg <= 1)
+                {
+                  spoint->m_rbg = 0;
+
+                  if (FlexTDMA == 2)
+                   {
+                       spoint->m_sym += 1; //FlexTDMA
+                   }
+                  else
+                   {
+                      spoint->m_sym = spoint->m_sym + ue.first->m_ulSym;//FlexOFDMA has to start after n_ulSym of on UE before
+                   }
+                }
+          }
+
+
           if (dci == nullptr)
             {
               //By continuing to the next UE means that we are
