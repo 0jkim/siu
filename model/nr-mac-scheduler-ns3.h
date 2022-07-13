@@ -755,7 +755,11 @@ protected:
   };
 
   // Configured Grant
-  virtual uint8_t GetScheduler () const = 0;;
+  virtual uint8_t GetScheduler () const = 0;
+
+  virtual std::shared_ptr<DciInfoElementTdma>
+  CreateUlCGConfig (PointInFTPlane *spoint, const std::shared_ptr<NrMacSchedulerUeInfo> &ueInfo,
+               uint32_t maxSym) const = 0;
 
 protected:
   Ptr<NrAmc> m_dlAmc; //!< AMC pointer

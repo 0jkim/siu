@@ -1337,6 +1337,113 @@ NrMacSchedulerOfdma::CreateUlDci (PointInFTPlane *spoint,
   return dci;
 }
 
+
+std::shared_ptr<DciInfoElementTdma>
+NrMacSchedulerOfdma::CreateUlCGConfig (PointInFTPlane *spoint,
+                                      const std::shared_ptr<NrMacSchedulerUeInfo> &ueInfo,
+                                      uint32_t maxSym) const
+{
+  NS_LOG_FUNCTION (this);
+
+  uint32_t tbs = m_ulAmc->CalculateTbSize (ueInfo->m_ulMcs,
+                                           ueInfo->m_ulRBG * GetNumRbPerRbg ());
+
+  // If is less than 7 (3 mac header, 2 rlc header, 2 data), then we can't
+  // transmit any new data, so don't create dci.
+  // However, to comply with the constraints imposed in the new scheduler (SymOFDMA and RBOFDMA),
+  // this condition will not be taken into account.
+  /*
+  if (tbs < 7)
+    {
+      NS_LOG_DEBUG ("While creating DCI for UE " << ueInfo->m_rnti <<
+                    " assigned " << ueInfo->m_ulRBG << " UL RBG, but TBS < 7");
+      return nullptr;
+    }*/
+
+  // Calculate the number of RBs to be assigned per symbol
+  uint32_t RBGNum = ueInfo->m_ulRBG /ueInfo->m_ulSym ;
+  std::vector<uint8_t> rbgBitmask = GetUlNotchedRbgMask ();
+
+  if (rbgBitmask.size () == 0)
+    {
+      rbgBitmask = std::vector<uint8_t> (GetBandwidthInRbg (), 1);
+    }
+
+  NS_ASSERT (rbgBitmask.size () == GetBandwidthInRbg ());
+
+  uint32_t lastRbg = spoint->m_rbg;
+  uint32_t assigned = RBGNum;
+
+  // Required for scheduling SymOFDMA
+  if (m_schType_OFDMA != 1)
+  {
+      if (GetBandwidthInRbg ()-lastRbg < RBGNum)
+        {
+          spoint->m_rbg = 0;
+          lastRbg = spoint->m_rbg;
+          spoint->m_sym += 1;
+        }
+  }
+
+
+  // Limit the places in which we can transmit following the starting point
+  // and the number of RBG assigned to the UE
+  for (uint32_t i = 0; i < GetBandwidthInRbg (); ++i)
+    {
+      if (i >= spoint->m_rbg && RBGNum > 0 && rbgBitmask[i] == 1)
+        {
+          RBGNum--;
+          lastRbg = i;
+        }
+      else
+        {
+          // Set to 0 the position < spoint->m_rbg OR the remaining RBG when
+          // we already assigned the number of requested RBG
+          rbgBitmask[i] = 0;
+        }
+    }
+
+  NS_ASSERT_MSG (RBGNum == 0,
+                 "If you see this message, it means that the AssignRBG and CreateDci method are unaligned");
+
+  NS_LOG_INFO ("UE " << ueInfo->m_rnti << " assigned RBG from " <<
+               static_cast<uint32_t> (spoint->m_rbg) << " to " <<
+               static_cast<uint32_t> (spoint->m_rbg + assigned) << " for " <<
+               static_cast<uint32_t> (ueInfo->m_ulSym) << " SYM.");
+
+  //Due to MIMO implementation MCS, TB size, ndi, rv, are vectors
+  std::vector<uint8_t> ulMcs = {ueInfo->m_ulMcs};
+  std::vector<uint32_t> ulTbs = {tbs};
+  std::vector<uint8_t> ndi = {1};
+  std::vector<uint8_t> rv = {0};
+
+   spoint->m_rbg = lastRbg + 1;
+
+   std::shared_ptr<DciInfoElementTdma> dci = std::make_shared<DciInfoElementTdma>
+      (ueInfo->m_rnti, DciInfoElementTdma::UL, spoint->m_sym, (ueInfo->m_ulSym), ulMcs,
+       ulTbs, ndi, rv, DciInfoElementTdma::DATA, GetBwpId (), GetTpc());
+
+   // New symbol (symbols are assigned in ascending order)
+   if (spoint->m_rbg == GetBandwidthInRbg ())
+     {
+       spoint->m_sym += ueInfo->m_ulSym;
+       spoint->m_rbg = 0;
+     }
+
+  dci->m_rbgBitmask = std::move (rbgBitmask);
+
+  std::ostringstream oss;
+  for (auto x: dci->m_rbgBitmask)
+  {
+   oss << std::to_string(x) << " ";
+  }
+  NS_LOG_INFO ("UE " << ueInfo->m_rnti << " DCI RBG mask: " << oss.str());
+
+  NS_ASSERT (std::count (dci->m_rbgBitmask.begin (), dci->m_rbgBitmask.end (), 0) != GetBandwidthInRbg ());
+
+  return dci;
+}
+
 void
 NrMacSchedulerOfdma::SetScheduler (uint8_t v)
 {

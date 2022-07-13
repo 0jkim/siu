@@ -117,6 +117,10 @@ protected:
   // Configured Grant
   virtual uint8_t GetScheduler () const override;
 
+  virtual std::shared_ptr<DciInfoElementTdma>
+  CreateUlCGConfig (PointInFTPlane *spoint, const std::shared_ptr<NrMacSchedulerUeInfo> &ueInfo,
+               uint32_t maxSym) const override;
+
 private:
 
   TracedValue<uint32_t> m_tracedValueSymPerBeam;

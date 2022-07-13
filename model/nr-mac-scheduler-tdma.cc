@@ -551,4 +551,50 @@ NrMacSchedulerTdma::GetScheduler () const
   return 1;
 }
 
+// Configured Grant
+std::shared_ptr<DciInfoElementTdma>
+NrMacSchedulerTdma::CreateUlCGConfig (NrMacSchedulerNs3::PointInFTPlane *spoint,
+                                     const std::shared_ptr<NrMacSchedulerUeInfo> &ueInfo,
+                                     uint32_t maxSym) const
+{
+  NS_LOG_FUNCTION (this);
+  uint32_t tbs = m_ulAmc->CalculateTbSize (ueInfo->m_ulMcs,
+                                           ueInfo->m_ulRBG * GetNumRbPerRbg ());
+
+  // If is less than 7 (3 mac header, 2 rlc header, 2 data), then we can't
+  // transmit any new data, so don't create dci.
+  if (tbs < 7)
+    {
+      NS_LOG_DEBUG ("While creating DCI for UE " << ueInfo->m_rnti <<
+                    " assigned " << ueInfo->m_ulRBG << " UL RBG, but TBS < 7");
+      return nullptr;
+    }
+
+  const std::vector<uint8_t> notchedRBGsMask = GetUlNotchedRbgMask ();
+  int zeroes = std::count (notchedRBGsMask.begin (), notchedRBGsMask.end (), 0);
+  uint32_t numOfAssignableRbgs = GetBandwidthInRbg () - zeroes;
+
+  uint8_t numSym = static_cast<uint8_t> (std::max (ueInfo->m_ulRBG / numOfAssignableRbgs, 1U));
+  numSym = std::min (numSym, static_cast<uint8_t> (maxSym));
+
+
+  //Due to MIMO implementation MCS and TB size are vectors
+  std::vector<uint8_t> ulMcs = {ueInfo->m_ulMcs};
+  std::vector<uint32_t> ulTbs = {tbs};
+  std::vector<uint8_t> ndi = {1};
+  std::vector<uint8_t> rv = {0};
+
+  auto dci = CreateDci (spoint, ueInfo, ulTbs, DciInfoElementTdma::UL, ulMcs,
+                        ndi, rv, numSym);
+
+  //Configured Grant (Note: we update the sym start after creating DCI)
+  spoint->m_sym += numSym;
+
+  // Reset the RBG (we are TDMA)
+  spoint->m_rbg = 0;
+
+  return dci;
+}
+
+
 } //namespace ns3

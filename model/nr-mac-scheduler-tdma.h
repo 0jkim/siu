@@ -221,6 +221,10 @@ protected:
   // Configured Grant
   virtual uint8_t GetScheduler () const override;
 
+  virtual std::shared_ptr<DciInfoElementTdma>
+  CreateUlCGConfig (PointInFTPlane *spoint, const std::shared_ptr<NrMacSchedulerUeInfo> &ueInfo,
+               uint32_t maxSym) const override;
+
 private:
   /**
    * \brief Retrieve the UE vector from an ActiveUeMap

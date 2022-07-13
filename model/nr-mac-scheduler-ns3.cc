@@ -1674,7 +1674,17 @@ NrMacSchedulerNs3::DoScheduleUlData (PointInFTPlane *spoint, uint32_t symAvail,
               continue;
             }
 
-          std::shared_ptr<DciInfoElementTdma> dci = CreateUlDci (spoint, ue.first, symPerBeam.at (GetBeam (beam)));
+          std::shared_ptr<DciInfoElementTdma> dci;
+
+          if (m_cgScheduling)
+          {
+               dci = CreateUlCGConfig (spoint, ue.first, symPerBeam.at (GetBeam (beam)));
+          }
+          else
+          {
+              dci = CreateUlDci (spoint, ue.first, symPerBeam.at (GetBeam (beam)));
+          }
+
 
           // Only if it is type schType_OFDMA or FLexOFDMA (meter alguna restricción para no utilizarlo si es OFDMA y TDMA)
           uint8_t schType_OFDMA = GetScheduler();
@@ -2519,7 +2529,6 @@ NrMacSchedulerNs3::DoSchedUlTriggerReq (const NrMacSchedSapProvider::SchedUlTrig
     {
       ResetExpiredHARQ (itUe.second->m_rnti, &itUe.second->m_ulHarq);
     }
-
   // Merge not-retransmitted and received feedback
   std::vector <UlHarqInfo> ulHarqFeedback;
   if (params.m_ulHarqInfoList.size () > 0 || m_ulHarqToRetransmit.size () > 0)
