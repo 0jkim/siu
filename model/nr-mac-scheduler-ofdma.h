@@ -122,6 +122,6 @@ private:
   TracedValue<uint32_t> m_tracedValueSymPerBeam;
 
   // Configured Grant
-  uint8_t m_schTypeFlexTDMA {2}; //!<
+  uint8_t m_schType_OFDMA {1}; //!<
 };
 } // namespace ns3

@@ -44,12 +44,12 @@ NrMacSchedulerOfdma::GetTypeId (void)
                      MakeTraceSourceAccessor (&NrMacSchedulerOfdma::m_tracedValueSymPerBeam),
                      "ns3::TracedValueCallback::Uint32")
 
-     // Configured Grant - New schedulers (FlexTDMA, FlexOFDMA)
-     .AddAttribute ("FlexTDMA",
-                    "schedule with FlexTDMA if it is true, and with FlexOFDMA if it is false",
+     // Configured Grant - New schedulers (SymOFDMA, RBOFDMA)
+     .AddAttribute ("schOFDMA",
+                    "schedule with SymOFDMA if it is true, and with RBOFDMA if it is false",
                     UintegerValue (1),
-                    MakeBooleanAccessor (&NrMacSchedulerOfdma::SetScheduler,
-                                         &NrMacSchedulerOfdma::GetScheduler),
+                    MakeUintegerAccessor (&NrMacSchedulerOfdma::SetScheduler,
+                                          &NrMacSchedulerOfdma::GetScheduler),
                     MakeUintegerChecker<uint8_t> ())
   ;
   return tid;
@@ -638,7 +638,7 @@ NrMacSchedulerOfdma::GetTpc () const
   return 1; // 1 is mapped to 0 for Accumulated mode, and to -1 in Absolute mode TS38.213 Table Table 7.1.1-1
 }
 
-// Configured Grant - New schedulers (FlexTDMA and FlexOFDMA)
+// Configured Grant - New schedulers (SymOFDMA and RBOFDMA)
 
 NrMacSchedulerNs3::BeamSymbolMap
 NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl) const
@@ -712,7 +712,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
       uint32_t rbAssignableMin = 0;
       uint32_t  rbAssignableMinStored = 1000;
       bool alreadyAssigned = false;
-      if (m_schTypeFlexTDMA==3)
+      if (m_schType_OFDMA==3)
       {
           while(1)
           {
@@ -762,20 +762,25 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
               }
               else
               {
-                  double result = ceil(rbPacket/v_rbgAssignable[ii]);
-                  if (rbPacket%v_rbgAssignable[ii]!= 0){result = rbPacket/v_rbgAssignable[ii] +1;} //ceil
-                  rbAssignableMin = uint32_t(v_rbgAssignable[ii]*result - rbPacket);
+                  int numRbgAssignable = (rbgInOneSymbolPrime/(ueVector.size()))/v_rbgAssignable[ii];
+                  if (numRbgAssignable == 0)
+                  {
+                    numRbgAssignable = 1;
+                  }
+                  double numSym = ceil(rbPacket/(v_rbgAssignable[ii]*numRbgAssignable));
+                  if (rbPacket%(v_rbgAssignable[ii]*numRbgAssignable)!= 0){numSym = rbPacket/(v_rbgAssignable[ii]*numRbgAssignable) +1;} //ceil
+                  rbAssignableMin = uint32_t(v_rbgAssignable[ii]*numRbgAssignable*numSym - rbPacket);
                   //rbAssignableMin = uint32_t(v_rbgAssignable[ii]*ceil(rbPacket/v_rbgAssignable[ii]) - rbPacket);
 
                   std::cout << "Left symbols: " << rbAssignableMin << " with RBpacket: "<<rbPacket<< '\n';
                   std::cout << "Debug: v_rbgAssignable[ii] = " << uint32_t(v_rbgAssignable[ii])
-                            << " with Symbols: "<< uint32_t(result)
+                            << " with Symbols: "<< uint32_t(numSym)
                             << " and packet RBs: " << rbPacket << '\n';
 
                   if (rbAssignableMin < rbAssignableMinStored)
                   {
                     // Only if the packet enters in less than one slot
-                    if (result < 12)
+                    if (numSym < 12)
                      {
                          rbgAssignable =  v_rbgAssignable[ii];
                          rbAssignableMinStored = rbAssignableMin;
@@ -787,7 +792,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
       }
 
 
-      if (m_schTypeFlexTDMA==3)
+      if (m_schType_OFDMA==3)
       {
           //rbgAssignable = 2;
       }
@@ -795,7 +800,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
       {
           rbgAssignable = 2;
       }
-      //if (!m_schTypeFlexTDMA)
+      //if (!m_schType_OFDMA)
       //{
       //    while(1)
       //     {
@@ -845,7 +850,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
               uint32_t scheduledUEs = 0;
               if (resources-1 > ((rbgInOneSymbol*beamSym)-(rbgInOneSymbol*sym)))
                 {
-                  if (m_schTypeFlexTDMA==3)
+                  if (m_schType_OFDMA==3)
                     {
                       schedInfoIt = ueVector.begin () + initRNTIpos;
                     }
@@ -859,13 +864,13 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                       uint32_t bufQueueSize = schedInfoIt->second;
                       if (GetUe (*schedInfoIt)->m_ulTbSize < std::max (bufQueueSize, 7U))
                         {
-                          if (m_schTypeFlexTDMA==2)
+                          if (m_schType_OFDMA==2)
                             {
                               if (nextSymbol < sym)
                                 {
                                   nextSymbol ++;
 
-                                  if(ueSchedVector.size()>1)
+                                  if(ueSchedVectorFirstSym.size()>1 || ueSchedVector.size()>1) // lo esta guardando en otro sym, en vez de een el mismo
                                     {
                                       GetUe (*schedInfoIt)->m_ulTbSize = 0;
                                       GetUe (*schedInfoIt)->m_ulSym = 0;
@@ -874,7 +879,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                                       ueSchedVectorFirstSym.clear();
                                       ueSchedVector.clear();
                                       goto scheduleUE;
-                                   }
+                                  }
                                 }
                               if (GetUe (*schedInfoIt)->m_ulSym == 1)
                                 {
@@ -889,7 +894,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                                 }
                             }
 
-                          if (m_schTypeFlexTDMA==3)
+                          if (m_schType_OFDMA==3)
                             {
                               if (sym == initSym)
                                 {
@@ -927,7 +932,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                         {
                           scheduledUEs ++;
 
-                          if(m_schTypeFlexTDMA==3)
+                          if(m_schType_OFDMA==3)
                               {
                                 uint16_t vectorSizeOfUe = UeScheduling_sym->second.size();
                                 bool applyConstrain = false;
@@ -942,17 +947,25 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                                       {
                                         if (scheduledUEs == vectorSizeOfUe)
                                           {
-                                            if (resources == (rbgInOneSymbol*beamSym)-(rbgInOneSymbol*(sym-1)))
-                                              {
+                                            if (scheduledUEs > 1)
+                                            {
+                                                if (resources == (rbgInOneSymbol*beamSym)-(rbgInOneSymbol*(sym-1)))
+                                                  {
+                                                    clearSchedVector = true;
+                                                  }
+                                                else
+                                                  {
+                                                    applyConstrain = true;
+                                                  }
+                                            }
+                                            else if (scheduledUEs == 1)
+                                            {
                                                 clearSchedVector = true;
-                                              }
-                                            else
-                                              {
-                                                applyConstrain = true;
-                                              }
-                                          }
-                                      }
+                                            }
 
+                                          }
+
+                                      }
                                   }
                                 if (applyConstrain)
                                   {
@@ -971,7 +984,11 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                                           {
                                             if (GetUe (*schedInfoUeIt)->m_rnti == (GetUeRnti (*UeScheduling)))
                                               {
-                                                if ( GetUe (*schedInfoUeIt)->m_ulRBG < ((sym-initSym+1)*GetRBcounter(*UeScheduling)))
+                                                if (resources-1 >= ((rbgInOneSymbol*beamSym)-(rbgInOneSymbol*(sym-1))))
+                                                {
+                                                    sym = sym-1;
+                                                }
+                                                if ( GetUe (*schedInfoUeIt)->m_ulRBG < ((sym-initSym+1)*GetRBcounter(*UeScheduling))) //+1 ¿?
                                                   {
                                                     GetUe (*schedInfoUeIt)->m_ulRBG = (sym-initSym+1)*GetRBcounter(*UeScheduling) ;
                                                     GetUe (*schedInfoUeIt)->m_ulSym = (sym-initSym+1) ;
@@ -986,9 +1003,17 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                                           }
                                         schedInfoUeIt++;
                                       }
-                                      resources = (rbgInOneSymbol*beamSym)-(rbgInOneSymbol*sym);
-                                      sym++;
-                                      clearSchedVector = true;
+                                   //if (((rbgInOneSymbol*sym)-(rbgInOneSymbol*beamSym)-resources) >= rbgAssignable)
+                                  // {
+                                     // We can continue assigning resources in this symbol
+                                       // NO lo termino de ver...si solo entran dos rbs? hacer variar pruebas
+                                   //}
+                                   //else
+                                   //{
+                                       resources = (rbgInOneSymbol*beamSym)-(rbgInOneSymbol*sym);
+                                       sym++;
+                                   //}
+                                    clearSchedVector = true;
                                   }
                                 applyConstrain = false;
                                 if (clearSchedVector)
@@ -999,7 +1024,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                                     nextUE = scheduledUEs;
                                     clearSchedVector = false;
                                     initRNTIpos = countPos;
-                                    if (initRNTIpos == ueVector.size())
+                                    if (initRNTIpos == int(ueVector.size()))
                                     {
                                         rbgAssignable = 2;
                                     }
@@ -1029,6 +1054,25 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
               nextUE = 0;
               initSym = 1;
               nextSymbol = 1;
+
+              if(ueSchedVectorFirstSym.size()>1 || ueSchedVector.size()>1)
+                {
+                auto schedInfoIt = ueVector.begin ();
+                while (schedInfoIt != ueVector.end ())
+                   {
+                    uint8_t sizeUE = ueSchedVector.size();
+                    auto ueRNTI = ueSchedVector.begin()+sizeUE-1;
+
+                     if (GetUe (*schedInfoIt)->m_rnti == GetUeRnti(*ueRNTI))
+                       {
+                         GetUe (*schedInfoIt)->m_ulTbSize = 0;
+                         GetUe (*schedInfoIt)->m_ulSym = 0;
+                         GetUe (*schedInfoIt)->m_ulRBG = 0;
+                         break;
+                       }
+                     schedInfoIt++;
+                   }
+               }
               break;
             }
 
@@ -1049,15 +1093,21 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                             assigned.m_rbg += rbgAssignable;
                             GetRBcounter(*UeScheduling) = GetUe (*schedInfoIt)->m_ulRBG  ;
                             GetUeRBGcounter(*UeScheduling_sym)= ueSchedVector;
-
+                        if (resources > rbgAssignable)
+                        {
                             resources -= rbgAssignable;
+                         }
+                         else
+                         {
+                             resources = 1;
+                         }
 
                             goto UEscheduled;
                          }
                       else
                         {
                           GetUe (*schedInfoIt)->m_ulSym = (sym-(GetFirstSym (*UeScheduling_sym)))+1;
-                          // Apply constraint for FlexOFDMA: copy the same number
+                          // Apply constraint for RBOFDMA: copy the same number
                           // of RBs even if it does not need all of them.
                           GetUe (*schedInfoIt)->m_ulRBG += GetRB(*UeScheduling);
                           assigned.m_rbg = GetUe (*schedInfoIt)->m_ulRBG;
@@ -1081,8 +1131,14 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                       assigned.m_rbg += rbgAssignable;
                       ueSchedVector.emplace_back(GetUe (*schedInfoIt)->m_rnti,GetUe (*schedInfoIt)->m_ulRBG );
                       GetUeRBGcounter(*UeScheduling_sym)= ueSchedVector;
-
-                      resources -= rbgAssignable;
+                      if (resources > rbgAssignable)
+                      {
+                        resources -= rbgAssignable;
+                      }
+                      else
+                      {
+                          resources = 1;
+                      }
 
                       rntiOrder.emplace_back(GetUe (*schedInfoIt)->m_rnti);
 
@@ -1103,12 +1159,20 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                   ueSchedVector.clear ();
                   UeScheduling_sym ++;
                 }
-                GetUe (*schedInfoIt)->m_ulSym = 1;
-                GetUe (*schedInfoIt)->m_ulRBG += rbgAssignable;
-                assigned.m_rbg += rbgAssignable;
-                ueSchedVector.emplace_back(GetUe (*schedInfoIt)->m_rnti,GetUe (*schedInfoIt)->m_ulRBG );
-                ueSchedVectorFirstSym.emplace_back(sym,ueSchedVector);
-                resources -= rbgAssignable;
+                if (resources < rbgAssignable)
+                {
+                    resources = 1;
+                }
+                else
+                {
+                    GetUe (*schedInfoIt)->m_ulSym = 1;
+                    GetUe (*schedInfoIt)->m_ulRBG += rbgAssignable;
+                    assigned.m_rbg += rbgAssignable;
+                    ueSchedVector.emplace_back(GetUe (*schedInfoIt)->m_rnti,GetUe (*schedInfoIt)->m_ulRBG );
+                    ueSchedVectorFirstSym.emplace_back(sym,ueSchedVector);
+                    resources -= rbgAssignable;
+                }
+
                 firstSym = false;
 
                 rntiOrder.emplace_back(GetUe (*schedInfoIt)->m_rnti);
@@ -1149,7 +1213,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
               initSym = 1;
               nextSymbol = 1;
 
-              if(m_schTypeFlexTDMA==3 && ueSchedVector.size()>1)
+              if(m_schType_OFDMA==2 && (ueSchedVectorFirstSym.size()>1 || ueSchedVector.size()>1))
                 {
                   GetUe (*schedInfoIt)->m_ulTbSize = 0;
                   GetUe (*schedInfoIt)->m_ulSym = 0;
@@ -1179,7 +1243,7 @@ NrMacSchedulerOfdma::CreateUlDci (PointInFTPlane *spoint,
 
   // If is less than 7 (3 mac header, 2 rlc header, 2 data), then we can't
   // transmit any new data, so don't create dci.
-  // However, to comply with the constraints imposed in the new scheduler (FlexTDMA and FlexOFDMA),
+  // However, to comply with the constraints imposed in the new scheduler (SymOFDMA and RBOFDMA),
   // this condition will not be taken into account.
   /*
   if (tbs < 7)
@@ -1203,8 +1267,8 @@ NrMacSchedulerOfdma::CreateUlDci (PointInFTPlane *spoint,
   uint32_t lastRbg = spoint->m_rbg;
   uint32_t assigned = RBGNum;
 
-  // Required for scheduling FlexTDMA
-  if (m_schTypeFlexTDMA != 1)
+  // Required for scheduling SymOFDMA
+  if (m_schType_OFDMA != 1)
   {
       if (GetBandwidthInRbg ()-lastRbg < RBGNum)
         {
@@ -1276,13 +1340,13 @@ NrMacSchedulerOfdma::CreateUlDci (PointInFTPlane *spoint,
 void
 NrMacSchedulerOfdma::SetScheduler (uint8_t v)
 {
-  m_schTypeFlexTDMA= v;
+  m_schType_OFDMA= v;
 }
 
 uint8_t
 NrMacSchedulerOfdma::GetScheduler () const
 {
-  return m_schTypeFlexTDMA;
+  return m_schType_OFDMA;
 }
 
 } // namespace ns3

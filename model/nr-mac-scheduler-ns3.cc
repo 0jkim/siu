@@ -1638,7 +1638,7 @@ NrMacSchedulerNs3::DoScheduleUlData (PointInFTPlane *spoint, uint32_t symAvail,
   NS_ASSERT (spoint->m_rbg == 0);
 
   // This function assigns the number of RBs needed by each UE according to the
-  // scheduler that has been chosen (FlexTDMA and FlexOFDMA are programmed inside this function).
+  // scheduler that has been chosen (schType_OFDMA and FlexOFDMA are programmed inside this function).
   BeamSymbolMap symPerBeam = AssignULRBG (symAvail, activeUl);
   uint8_t usedSym = 0;
   GetFirst GetBeam;
@@ -1676,23 +1676,15 @@ NrMacSchedulerNs3::DoScheduleUlData (PointInFTPlane *spoint, uint32_t symAvail,
 
           std::shared_ptr<DciInfoElementTdma> dci = CreateUlDci (spoint, ue.first, symPerBeam.at (GetBeam (beam)));
 
-          // Only if it is type FLexTDMA or FLexOFDMA (meter alguna restricción para no utilizarlo si es OFDMA y TDMA)
-          uint8_t FlexTDMA = GetScheduler();
-          std::cout << "Scheduler Type (1 = OFDMA or TDMA, 2 = FlexTDMA, 3 = FlexOFDMA): "<< uint32_t(FlexTDMA)<<'\n';
-          if (FlexTDMA != 1) //1 is for OFDMA and TDMA, 2 is for FlexTDMA and 3 is for FlexOFDMA
+          // Only if it is type schType_OFDMA or FLexOFDMA (meter alguna restricción para no utilizarlo si es OFDMA y TDMA)
+          uint8_t schType_OFDMA = GetScheduler();
+          std::cout << "SchedulerType with OFDMA Access Mode (1 = 5GL-OFDMA, 2 = Sym-OFDMA, 3 = RB-OFDMA): "<< uint32_t(schType_OFDMA)<<'\n';
+          if (schType_OFDMA != 1) //1 is for OFDMA and TDMA, 2 is for schType_OFDMA and 3 is for FlexOFDMA
           {
               if (GetBandwidthInRbg ()-spoint->m_rbg <= 1)
                 {
                   spoint->m_rbg = 0;
-
-                  if (FlexTDMA == 2)
-                   {
-                       spoint->m_sym += 1; //FlexTDMA
-                   }
-                  else
-                   {
-                      spoint->m_sym = spoint->m_sym + ue.first->m_ulSym;//FlexOFDMA has to start after n_ulSym of on UE before
-                   }
+                  spoint->m_sym = spoint->m_sym + ue.first->m_ulSym;//FlexOFDMA has to start after n_ulSym of on UE before
                 }
           }
 
