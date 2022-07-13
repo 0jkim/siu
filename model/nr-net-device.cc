@@ -213,7 +213,7 @@ NrNetDevice::Receive (Ptr<Packet> p)
     }
   else
     {
-     // NS_ABORT_MSG ("NrNetDevice::Receive - Unknown IP type...");
+      NS_ABORT_MSG ("NrNetDevice::Receive - Unknown IP type...");
     }
 }
 
