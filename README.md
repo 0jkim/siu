@@ -5,12 +5,6 @@ simulation of NR non-standalone cellular networks. Ns-3 is used as a base,
 on top of which we will add our module as plug-in (with limitations that will
 be discussed below).
 
-## Installation for an authorized developer
-
-We try to keep in sync with the latest advancements in ns-3-dev. By the version
-1.0, we have upstreamed all our patches to ns-3-dev, making our module
-independent from the ns-3 version used. Since the version 1.3, for 
-each NR release we will recommend which ns-3 release to use.
 
 ### Brand new installation of ns-3-dev repository
 
@@ -235,7 +229,7 @@ The Mobile Networks group in CTTC is a group of 10 highly skilled researchers, w
 
 We are [on the web](https://cttc-lena.gitlab.io/5g-lena-website/about/).
 
-## Authors ##
+## 5G-LENA Authors ##
 
 In alphabetical order:
 
@@ -247,6 +241,10 @@ In alphabetical order:
 - Natale Patriciello
 
 Inspired by [mmWave module by NYU/UniPD] (https://github.com/nyuwireless-unipd/ns3-mmwave)
+
+## Configured Grant in 5G-LENA Author ##
+
+Ana Larrañaga
 
 ## License ##
 
