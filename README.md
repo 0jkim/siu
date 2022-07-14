@@ -5,97 +5,65 @@ simulation of NR non-standalone cellular networks. Ns-3 is used as a base,
 on top of which we will add our module as plug-in (with limitations that will
 be discussed below).
 
-### Create a group on your git
+
+### Clone the NS3 and NR repos in your computer: ns-3-dev and nr
+
+Create a folder locally:
+
+```
+$ mkdir yourFolder
+```
+Clone the ns-3-dev with the needed changes in order to use CG:
+
+```
+$ git clone git@gitlab.com:ns-3-dev-nr-configuredgrant/ns-3-dev.git
+```
+
+Go to the contrib folder:
+```
+$ cd ns-3-dev/contrib
+```
+Clone the nr repository:
+```
+$ git clone git@gitlab.com:ns-3-dev-nr-configuredgrant/nr.git
+```
+We now have all the content locally. Let's move to the branches we are interested in.
+
+
+### Checkout in the CG branch: 5g-lena-cg-v2.1.y
+
+We are in the contrib folder, checkout in the CG branch:
+```
+$ git checkout remotes/origin/5g-lena-cg-v2.1.y
+$ git checkout -b 5g-lena-cg-v2.1.y
+```
+
+### Checkout in the NS-3-DEV with CG branch: remotes/origin/ns-3.36-cg
+
+Go to ns-3-dev folder and checkout in the ns-3-dev CG branch:
+```
+$ cd ../..
+$ git checkout remotes/origin/ns-3.36-cg
+$ git checkout -b ns-3.36-cg
+```
+
+### Create a group on your remote-git with two projects (ns-3-dev and nr)
 Create group
 
-### Add two new projects: ns-3-dev and nr
-
-### Brand new installation of ns-3-dev repository
-
-To download a working copy of the ns-3-dev repository with the latest changes,
-you can do the following:
+### Push the code to these projects
 
 ```
-$ git clone https://gitlab.com/nsnam/ns-3-dev.git
-$ cd ns-3-dev
+$ git push git@gitlab.com:yourGroup/project_1NS3DEV.git ns-3.36-cg
+$ cd contrib/nr
+$ git push git@gitlab.com:yourGroup/project_2NR.git 5g-lena-cg-v2.1.y 
 ```
-
-At this step, you should check in RELEASE_NOTES.md which is the recommended ns-3 
-release to use for the specific NR release, and then you can switch to the 
-corresponding ns-3 release branch, e.g., in the following way:
-
-```
-$ git checkout ns-3.36
-
-```
-
-You can replace "36" with the specific release that you want to use. 
-
-If the recommended ns-3 release is not available yet (such in the case that NR is 
-released before the recommended ns-3 release), 
-then you can use ns-3 master until ns-3 recommended release is ready.
-
-Provide your username and password when asked.
-
-### Switching from CTTC-provided ns-3-dev
-
-Before v1.0, the NR module needed a custom ns-3-dev version. For those of you
-that are upgrading from v0.4 to v1.0, the steps to switch to the official
-ns-3 repository are the following (without recreating the repo configuration):
-
-```
-$ git remote add nsnam https://gitlab.com/nsnam/ns-3-dev.git
-$ git checkout master
-$ git pull nsnam master
-```
-
-Anyway, we will make sure that the master of our custom ns-3-dev will stay
-up-to-date with respect to the official ns-3-dev.
-
-### Using an existing installation of ns-3
-
-In case you are already using the git mirror of ns-3-dev, hosted at GitHub or
-GitLab, you are already ready to go (please make sure to be up-to-date with
-`git pull` in the master branch!).
-
-### Test the installation
-To test the installation, after following one of the previous point, you can do
-a simple configuration and compile test (more options for that later):
-
-```
-$ ./ns3 configure --enable-examples --enable-tests
-$ ./ns3 build
-```
-
-A success for both previous commands indicates an overall success.
-
-### Brand new installation of the NR module
-
-As a precondition to the following steps, you must have a working local git
-repository of ns-3-dev. If that is the case, then, your local git repo is ready
-to include our nr module (only for authorized users):
-
-```
-$ cd contrib
-$ git clone https://gitlab.com/cttc-lena/nr.git
-$ cd ..
-```
-
-Please note that the contrib/nr directory will be listed as "Untracked files" every
-time you do a `git status` command. Ignore it, as the directory lives as an
-independent module. As a result, we have now two parallel repository, but one
-lives inside the other.
-
-Finally, switch to the latest release branch (fixes are included in the release
-branch and not master). For example, for version 1.1 you have to `git checkout`
-to the `5g-lena-v1.1.y` branch.
-
 
 ### Test the NR installation
 
 Let's configure the project:
 
 ```
+$ cd ../..
 $ ./ns3 configure --enable-examples --enable-tests
 ```
 
@@ -128,58 +96,18 @@ After the installation of the missing packages run again `./ns3 configure --enab
 You should see: `SQLite stats support: enabled`
 
 
-## Upgrading 5G-LENA
-
-We assume that your work lives in a separate branch, and that the 'master'
-branch of the NR repository is left untouched as the first time you downloaded
-it. If it is not the case, then please move all your work in a separate branch.
-
-A vanilla 'master' branch can be updated by simply running:
-
-```
-$ cd ns-3-dev/contrib/nr    # or src/nr if the module lives under src/
-$ git checkout master
-$ git pull
-```
-
-At each release, we will incorporate into the master branch all the work that
-is meant to be released.
-
 ## Building **Configured Grant** and **URLLC schedulers** for UL periodic transmissions code
 At this point we have the ns-3-dev repository installed and we are on version 3.36, 
-as well as 5g-lena cloned inside contrib folder. Then, you must check out in 5g-lena-cg-v2.1.y
-Apart from that, in ns-3-dev, you must apply the patch "ns-3-dev-configured-grant.patch" which 
-is in the Build_CG folder inside the contrib/nr/ folder. 
+as well as 5g-lena cloned inside contrib folder. We are also checkout on the branches we are interested in.
 
-1. You are in nr folder so chekcout in 5g-lena-cg-v2.1.y: 
-
-```
-git checkout 5g-lena-cg-v2.1.y
-```
-
-2. Now, we are going to apply the patch we have in the Build_CG folder
-inside ns-3-dev folder:
-
-```
-cd ../..
-patch -p1 < contrib/nr/Build_CG/ns-3-dev-configured-grant.patch 
-```
-
-3. Build the ns-3-dev and 5g-lena modules with configured grant mechanisim:
-
-```
-./ns3 configure --enable-examples
-./ns3
-```
-
-4. To test the configured grant scheduling with the new scheudlers,
+To test the configured grant scheduling with the new scheudlers,
 we are going to use the file inside Build_CG named test_configuredGrant.cc
 We are going to save this file in the scratch folder.
 Then we are going to create a log to see a simple configuration of configured grant.
 ```
 export 'NS_LOG=ConfiguredGrant=level_all|prefix_func|prefix_time:NrUePhy=level_all|prefix_func|prefix_time:NrUeMac=level_all|prefix_func|prefix_time:NrMacSchedulerNs3=level_all|prefix_func|prefix_time:LteRlcUm=level_all|prefix_func|prefix_time:NrGnbPhy=level_all|prefix_func|prefix_time:NrGnbMac=level_all|prefix_func|prefix_time:NrMacSchedulerOfdma=level_all|prefix_func|prefix_time:NrSpectrumPhy=level_all|prefix_func|prefix_time:BwpManagerGnb=level_all|prefix_func|prefix_time:NrMacSchedulerHarqRr=level_all|prefix_func|prefix_time' 
 
-./ns3 run scratch/test_CG > ConfiguredGrant_firstTest.out 2>&1
+./ns3 run scratch/ConfiguredGrant_TDD > ConfiguredGrant_firstTest.out 2>&1
 ```
 
 ## Documentation
