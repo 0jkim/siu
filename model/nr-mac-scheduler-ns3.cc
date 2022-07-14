@@ -773,6 +773,10 @@ NrMacSchedulerNs3::BSRReceivedFromUe (const MacCeElement &bsr)
 
       if (itLcg->second->GetTotalSize () > 0 || bufSize > 0)
         {
+          // SHORT_BSR, which is 5 bytes.
+          // We have 3 bytes of overhead for each subPDU (3*LCG)
+          // RLC overhad = 2 bytes
+          bufSize = 5+3+2+bufSize;
           NS_LOG_INFO ("Updating UL LCG " << static_cast<uint32_t> (lcg) <<
                        " for UE " << bsr.m_rnti << " size " << bufSize);
         }
@@ -1810,7 +1814,7 @@ NrMacSchedulerNs3::DoScheduleUlSr (PointInFTPlane *spoint, const std::list<uint1
       for (auto & ulLcg : NrMacSchedulerUeInfo::GetUlLCG (m_ueMap.at (v)))
         {
           NS_LOG_DEBUG ("Assigning 12 bytes to UE " << v << " because of a SR");
-          ulLcg.second->UpdateInfo (12);
+          ulLcg.second->UpdateInfo (22); //12 (22 as it is the header of IPv4)
         }
     }
 }
