@@ -952,21 +952,10 @@ private:
  
  //Configured Grant
 
-  std::list<uint16_t> m_configuredGrant;
-  std::list<uint16_t> m_configuredGrantAux;
-  SfnSf ulSfnConfigurateGrant = SfnSf (0, 0, 0, 1);
-  uint32_t numberOfSubframes = 0;
-  uint32_t numberOfSlotsInASubframe = 2; //mu = 0, 1 slot; mu = 1, 2 slots; mu = 2, 4 slots; mu = 3, 8 slots; mu = 4, 16 slots
-  uint32_t numberOfSlotForConfiguration;
-  uint32_t configuredGrantPeriodicity_numberOfSlot;
-  bool configuredGrantOn = false;
-
   uint8_t m_dlDataSymbolsF {0}; //!< DL Data symbols (attribute)
-
   std::list<uint32_t> m_bufCgr;  //!< List of BufSize of UEs that asked for a CGR
   uint8_t m_lcid_configuredGrant;
   std::list<uint8_t> m_cgrTraffP;
-
   bool m_cgScheduling;
 
 };
