@@ -137,7 +137,8 @@ Packet::Packet ()
      * global UID
      */
     m_metadata (static_cast<uint64_t> (Simulator::GetSystemId ()) << 32 | m_globalUid, 0),
-    m_nixVector (0)
+    m_nixVector (0),
+    m_periodicity()
 {
   m_globalUid++;
 }
@@ -146,7 +147,8 @@ Packet::Packet (const Packet &o)
   : m_buffer (o.m_buffer),
     m_byteTagList (o.m_byteTagList),
     m_packetTagList (o.m_packetTagList),
-    m_metadata (o.m_metadata)
+    m_metadata (o.m_metadata),
+    m_periodicity()
 {
   o.m_nixVector ? m_nixVector = o.m_nixVector->Copy ()
     : m_nixVector = 0;
@@ -179,7 +181,8 @@ Packet::Packet (uint32_t size)
      * global UID
      */
     m_metadata (static_cast<uint64_t> (Simulator::GetSystemId ()) << 32 | m_globalUid, size),
-    m_nixVector (0)
+    m_nixVector (0),
+    m_periodicity()
 {
   m_globalUid++;
 }
@@ -188,7 +191,8 @@ Packet::Packet (uint8_t const *buffer, uint32_t size, bool magic)
     m_byteTagList (),
     m_packetTagList (),
     m_metadata (0,0),
-    m_nixVector (0)
+    m_nixVector (0),
+    m_periodicity()
 {
   NS_ASSERT (magic);
   Deserialize (buffer, size);
@@ -205,7 +209,8 @@ Packet::Packet (uint8_t const*buffer, uint32_t size)
      * global UID
      */
     m_metadata (static_cast<uint64_t> (Simulator::GetSystemId ()) << 32 | m_globalUid, size),
-    m_nixVector (0)
+    m_nixVector (0),
+    m_periodicity()
 {
   m_globalUid++;
   m_buffer.AddAtStart (size);
@@ -219,7 +224,8 @@ Packet::Packet (const Buffer &buffer,  const ByteTagList &byteTagList,
     m_byteTagList (byteTagList),
     m_packetTagList (packetTagList),
     m_metadata (metadata),
-    m_nixVector (0)
+    m_nixVector (0),
+    m_periodicity()
 {
 }
 
@@ -1020,6 +1026,30 @@ std::ostream& operator<< (std::ostream& os, const Packet &packet)
 {
   packet.Print (os);
   return os;
+}
+
+// Configured Grant
+Packet::Packet (uint32_t size, uint8_t periodicity)
+  : m_buffer (size),
+    m_byteTagList (),
+    m_packetTagList (),
+    /* The upper 32 bits of the packet id in
+     * metadata is for the system id. For non-
+     * distributed simulations, this is simply
+     * zero.  The lower 32 bits are for the
+     * global UID
+     */
+    m_metadata (static_cast<uint64_t> (Simulator::GetSystemId ()) << 32 | m_globalUid, size),
+    m_nixVector (0),
+    m_periodicity(periodicity)
+{
+  m_globalUid++;
+}
+
+uint8_t
+Packet::GetPeriodicity (void) const
+{
+  return m_periodicity;
 }
 
 } // namespace ns3

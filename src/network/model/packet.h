@@ -763,7 +763,9 @@ public:
   typedef void (* SinrTracedCallback)
     (Ptr<const Packet> packet, double sinr);
     
-  
+  // Configured Grant
+  Packet (uint32_t size, uint8_t periodicity);
+  uint8_t GetPeriodicity (void) const;
 private:
   /**
    * \brief Constructor
@@ -792,6 +794,9 @@ private:
   mutable Ptr<NixVector> m_nixVector; //!< the packet's Nix vector
 
   static uint32_t m_globalUid; //!< Global counter of packets Uid
+
+  // Configured Grant
+  uint8_t m_periodicity;
 };
 
 /**
