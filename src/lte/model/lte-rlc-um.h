@@ -159,6 +159,9 @@ private:
    */
   SequenceNumber10 m_expectedSeqNumber;
 
+  // Configured Grant
+  uint8_t m_periodicity;
+
 };
 
 

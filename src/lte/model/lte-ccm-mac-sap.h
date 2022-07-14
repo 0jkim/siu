@@ -62,7 +62,7 @@ public:
   virtual void ReportSrToScheduler (uint16_t rnti) = 0;
 
   // Configured Grant
-  virtual void ReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid, uint8_t traffP) = 0;
+  virtual void ReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid, uint8_t traffP, Time traffInit, Time traffDeadline ) = 0;
 
 }; // end of class LteCcmMacSapProvider
 
@@ -112,7 +112,7 @@ public:
   virtual void NotifyPrbOccupancy (double prbOccupancy, uint8_t componentCarrierId) = 0;
 
   // Configured Grant
-  virtual void UlReceiveCgr(uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid, uint8_t traffP) = 0;
+  virtual void UlReceiveCgr(uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid, uint8_t traffP, Time traffInit, Time traffDeadline) = 0;
 
 }; // end of class LteCcmMacSapUser
 
@@ -132,7 +132,7 @@ public:
   virtual void ReportSrToScheduler (uint16_t rnti) override;
 
   // Configured Grant
-  virtual void ReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid, uint8_t traffP) override;
+  virtual void ReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid, uint8_t traffP, Time traffInit, Time traffDeadline) override;
 
 private:
   C* m_owner; ///< the owner class
@@ -158,9 +158,9 @@ void MemberLteCcmMacSapProvider<C>::ReportSrToScheduler (uint16_t rnti)
 
 // Configured Grant
 template <class C>
-void MemberLteCcmMacSapProvider<C>::ReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid, uint8_t traffP)
+void MemberLteCcmMacSapProvider<C>::ReportCgrToScheduler (uint16_t rnti, uint32_t bufSize, uint8_t lcid, uint8_t traffP, Time traffInit, Time traffDeadline)
 {
-  m_owner->DoReportCgrToScheduler (rnti, bufSize, lcid, traffP);
+  m_owner->DoReportCgrToScheduler (rnti, bufSize, lcid, traffP, traffInit, traffDeadline);
 }
 
 /// MemberLteCcmMacSapUser class
@@ -184,7 +184,7 @@ public:
   virtual void NotifyHarqDeliveryFailure ();
 
   // Configured Grant
-  virtual void UlReceiveCgr (uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid, uint8_t traffP);
+  virtual void UlReceiveCgr (uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid, uint8_t traffP, Time traffInit, Time traffDeadline);
 
 private:
   C* m_owner; ///< the owner class
@@ -234,9 +234,9 @@ void MemberLteCcmMacSapUser<C>::NotifyHarqDeliveryFailure ()
 
 // Configured Grant
 template<class C>
-void MemberLteCcmMacSapUser<C>::UlReceiveCgr (uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid, uint8_t traffP)
+void MemberLteCcmMacSapUser<C>::UlReceiveCgr (uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid, uint8_t traffP, Time traffInit, Time traffDeadline)
 {
-  m_owner->DoUlReceiveCgr (rnti, componentCarrierId, bufSize, lcid, traffP);
+  m_owner->DoUlReceiveCgr (rnti, componentCarrierId, bufSize, lcid, traffP, traffInit, traffDeadline);
 }
   
 } // end of namespace ns3

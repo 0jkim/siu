@@ -153,7 +153,7 @@ protected:
   virtual void DoNotifyPrbOccupancy (double prbOccupancy, uint8_t componentCarrierId);
 
   // Configured Grant
-  virtual void DoUlReceiveCgr(uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid, uint8_t traffP);
+  virtual void DoUlReceiveCgr(uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid, uint8_t traffP, Time traffInit, Time traffDeadline);
 
 protected:
 
@@ -185,7 +185,7 @@ protected:
   virtual void DoUlReceiveSr (uint16_t rnti, uint8_t componentCarrierId) override;
 
   // Configured Grant
-  virtual void DoUlReceiveCgr (uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid, uint8_t traffP) override;
+  virtual void DoUlReceiveCgr (uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid, uint8_t traffP, Time traffInit, Time traffDeadline) override;
 private:
   uint8_t m_lastCcIdForSr {0}; //!< Last CCID to which a SR was routed
 }; // end of class RrComponentCarrierManager

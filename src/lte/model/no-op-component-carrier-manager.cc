@@ -358,7 +358,7 @@ NoOpComponentCarrierManager::DoUlReceiveSr (uint16_t rnti, uint8_t componentCarr
 
 // Configured Grant
 void
-NoOpComponentCarrierManager::DoUlReceiveCgr (uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid, uint8_t traffP)
+NoOpComponentCarrierManager::DoUlReceiveCgr (uint16_t rnti, uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid, uint8_t traffP, Time traffInit, Time traffDeadline)
 {
   NS_LOG_FUNCTION (this);
 
@@ -366,7 +366,7 @@ NoOpComponentCarrierManager::DoUlReceiveCgr (uint16_t rnti, uint8_t componentCar
   NS_ABORT_MSG_IF (sapIt == m_ccmMacSapProviderMap.end (),
                    "Sap not found in the CcmMacSapProviderMap");
 
-  sapIt->second->ReportCgrToScheduler (rnti, bufSize, lcid, traffP);
+  sapIt->second->ReportCgrToScheduler (rnti, bufSize, lcid, traffP,  traffInit,  traffDeadline);
 }
 
 
@@ -489,13 +489,13 @@ RrComponentCarrierManager::DoUlReceiveSr(uint16_t rnti, [[maybe_unused]] uint8_t
 
 // Configured Grant
 void
-RrComponentCarrierManager::DoUlReceiveCgr(uint16_t rnti, [[maybe_unused]] uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid, uint8_t traffP)
+RrComponentCarrierManager::DoUlReceiveCgr(uint16_t rnti, [[maybe_unused]] uint8_t componentCarrierId, uint32_t bufSize, uint8_t lcid, uint8_t traffP, Time traffInit, Time traffDeadline)
 {
   NS_LOG_FUNCTION (this);
   // split traffic in uplink equally among carriers
   uint32_t numberOfCarriersForUe = m_ueInfo.at (rnti).m_enabledComponentCarrier;
 
-  m_ccmMacSapProviderMap.find (m_lastCcIdForSr)->second->ReportCgrToScheduler (rnti, bufSize, lcid, traffP);
+  m_ccmMacSapProviderMap.find (m_lastCcIdForSr)->second->ReportCgrToScheduler (rnti, bufSize, lcid, traffP, traffInit, traffDeadline);
 
   m_lastCcIdForSr++;
   if (m_lastCcIdForSr > numberOfCarriersForUe - 1)
