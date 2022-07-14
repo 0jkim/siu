@@ -5,6 +5,10 @@ simulation of NR non-standalone cellular networks. Ns-3 is used as a base,
 on top of which we will add our module as plug-in (with limitations that will
 be discussed below).
 
+### Create a group on your git
+Create group
+
+### Add two new projects: ns-3-dev and nr
 
 ### Brand new installation of ns-3-dev repository
 
