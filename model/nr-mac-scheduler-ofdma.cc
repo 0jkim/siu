@@ -1108,7 +1108,8 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                     initSym = 1;
                     nextSymbol = 1;
 
-                    if(ueSchedVectorFirstSym.size()>1 || ueSchedVector.size()>1)
+                    //if(ueSchedVectorFirstSym.size()>1 || ueSchedVector.size()>1)
+                    if(ueSchedVectorFirstSym.size()>1)
                       {
                       auto schedInfoIt = ueVector.begin ();
                       while (schedInfoIt != ueVector.end ())
