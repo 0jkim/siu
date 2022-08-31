@@ -168,6 +168,11 @@ public:
     return MilliSeconds (1);
   }
 
+  virtual Time GetTbUlEncodeLatency () const override
+  {
+      return Seconds(0);
+  }
+
 private:
   NrSchedGeneralTestCase *m_testCase;
 };

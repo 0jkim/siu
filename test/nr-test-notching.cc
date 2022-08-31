@@ -60,6 +60,9 @@ public:
   virtual BeamConfId GetBeamConfId (uint8_t rnti) const override;
   void SetParams (uint32_t numOfUesPerBeam, uint32_t numOfBeams);
 
+  // Configured Grant
+  virtual Time GetTbUlEncodeLatency () const override;
+
 private:
   uint32_t m_sapNumOfUesPerBeam = 0;
   uint32_t m_sapNumOfBeams = 0;
@@ -109,6 +112,12 @@ TestNotchingPhySapProvider::GetSlotPeriod () const
   //If in the future the scheduler calls this method, remove this assert"
   NS_FATAL_ERROR ("GetSlotPeriod should not be called");
   return MilliSeconds (1);
+}
+
+Time
+TestNotchingPhySapProvider::GetTbUlEncodeLatency () const
+{
+  return MilliSeconds (0);
 }
 
 void
