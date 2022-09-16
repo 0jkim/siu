@@ -1259,6 +1259,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                 if (assigned.m_rbg == rbgInOneSymbol || assigned.m_rbg == rbgInOneSymbol-1)
                   {
                     assigned.m_rbg = 0;
+                    resources = (rbgInOneSymbol*beamSym)-(rbgInOneSymbol*sym);
                   }
 
                 if (resources == 0)
