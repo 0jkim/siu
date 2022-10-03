@@ -76,6 +76,7 @@ public:
 
     // Configured Grant
     uint8_t periodicity;
+    uint32_t deadline;
   };
 
   /**

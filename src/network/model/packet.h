@@ -764,8 +764,9 @@ public:
     (Ptr<const Packet> packet, double sinr);
     
   // Configured Grant
-  Packet (uint32_t size, uint8_t periodicity);
+  Packet (uint32_t size, uint8_t periodicity, uint32_t deadline);
   uint8_t GetPeriodicity (void) const;
+  uint32_t GetDeadline(void) const;
 private:
   /**
    * \brief Constructor
@@ -797,6 +798,7 @@ private:
 
   // Configured Grant
   uint8_t m_periodicity;
+  uint32_t m_deadline;
 };
 
 /**

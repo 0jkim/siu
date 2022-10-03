@@ -104,6 +104,7 @@ LteRlcUm::DoTransmitPdcpPdu (Ptr<Packet> p)
       NS_LOG_LOGIC ("NumOfBuffers = " << m_txBuffer.size() );
       NS_LOG_LOGIC ("txBufferSize = " << m_txBufferSize);
       m_periodicity = p->GetPeriodicity();
+      m_deadline = p->GetDeadline();
     }
   else
     {
@@ -1140,6 +1141,7 @@ LteRlcUm::DoReportBufferStatus (void)
   r.retxQueueHolDelay = 0;
   r.statusPduSize = 0;
   r.periodicity = m_periodicity;
+  r.deadline = m_deadline;
 
   NS_LOG_LOGIC ("Send ReportBufferStatus = " << r.txQueueSize << ", " << r.txQueueHolDelay );
   m_macSapProvider->ReportBufferStatus (r);

@@ -161,6 +161,7 @@ private:
 
   // Configured Grant
   uint8_t m_periodicity;
+  uint32_t m_deadline;
 
 };
 

@@ -138,7 +138,8 @@ Packet::Packet ()
      */
     m_metadata (static_cast<uint64_t> (Simulator::GetSystemId ()) << 32 | m_globalUid, 0),
     m_nixVector (0),
-    m_periodicity()
+    m_periodicity(),
+    m_deadline()
 {
   m_globalUid++;
 }
@@ -148,7 +149,8 @@ Packet::Packet (const Packet &o)
     m_byteTagList (o.m_byteTagList),
     m_packetTagList (o.m_packetTagList),
     m_metadata (o.m_metadata),
-    m_periodicity()
+    m_periodicity(),
+    m_deadline()
 {
   o.m_nixVector ? m_nixVector = o.m_nixVector->Copy ()
     : m_nixVector = 0;
@@ -182,7 +184,8 @@ Packet::Packet (uint32_t size)
      */
     m_metadata (static_cast<uint64_t> (Simulator::GetSystemId ()) << 32 | m_globalUid, size),
     m_nixVector (0),
-    m_periodicity()
+    m_periodicity(),
+    m_deadline()
 {
   m_globalUid++;
 }
@@ -192,7 +195,8 @@ Packet::Packet (uint8_t const *buffer, uint32_t size, bool magic)
     m_packetTagList (),
     m_metadata (0,0),
     m_nixVector (0),
-    m_periodicity()
+    m_periodicity(),
+    m_deadline()
 {
   NS_ASSERT (magic);
   Deserialize (buffer, size);
@@ -210,7 +214,8 @@ Packet::Packet (uint8_t const*buffer, uint32_t size)
      */
     m_metadata (static_cast<uint64_t> (Simulator::GetSystemId ()) << 32 | m_globalUid, size),
     m_nixVector (0),
-    m_periodicity()
+    m_periodicity(),
+    m_deadline()
 {
   m_globalUid++;
   m_buffer.AddAtStart (size);
@@ -225,7 +230,8 @@ Packet::Packet (const Buffer &buffer,  const ByteTagList &byteTagList,
     m_packetTagList (packetTagList),
     m_metadata (metadata),
     m_nixVector (0),
-    m_periodicity()
+    m_periodicity(),
+    m_deadline()
 {
 }
 
@@ -1029,7 +1035,7 @@ std::ostream& operator<< (std::ostream& os, const Packet &packet)
 }
 
 // Configured Grant
-Packet::Packet (uint32_t size, uint8_t periodicity)
+Packet::Packet (uint32_t size, uint8_t periodicity, uint32_t deadline)
   : m_buffer (size),
     m_byteTagList (),
     m_packetTagList (),
@@ -1041,7 +1047,8 @@ Packet::Packet (uint32_t size, uint8_t periodicity)
      */
     m_metadata (static_cast<uint64_t> (Simulator::GetSystemId ()) << 32 | m_globalUid, size),
     m_nixVector (0),
-    m_periodicity(periodicity)
+    m_periodicity(periodicity),
+    m_deadline(deadline)
 {
   m_globalUid++;
 }
@@ -1050,6 +1057,12 @@ uint8_t
 Packet::GetPeriodicity (void) const
 {
   return m_periodicity;
+}
+
+uint32_t
+Packet::GetDeadline (void) const
+{
+  return m_deadline;
 }
 
 } // namespace ns3
