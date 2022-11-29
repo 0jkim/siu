@@ -149,8 +149,8 @@ Packet::Packet (const Packet &o)
     m_byteTagList (o.m_byteTagList),
     m_packetTagList (o.m_packetTagList),
     m_metadata (o.m_metadata),
-    m_periodicity(),
-    m_deadline()
+    m_periodicity(o.m_periodicity),
+    m_deadline(o.m_deadline)
 {
   o.m_nixVector ? m_nixVector = o.m_nixVector->Copy ()
     : m_nixVector = 0;
