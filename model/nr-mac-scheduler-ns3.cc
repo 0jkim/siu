@@ -1689,11 +1689,9 @@ NrMacSchedulerNs3::DoScheduleUlData (PointInFTPlane *spoint, uint32_t symAvail,
               dci = CreateUlDci (spoint, ue.first, symPerBeam.at (GetBeam (beam)));
           }
 
-
-          // Only if it is type schType_OFDMA or FLexOFDMA (meter alguna restricción para no utilizarlo si es OFDMA y TDMA)
           uint8_t schType_OFDMA = GetScheduler();
-          std::cout << "SchedulerType with OFDMA Access Mode (1 = 5GL-OFDMA, 2 = Sym-OFDMA, 3 = RB-OFDMA): "<< uint32_t(schType_OFDMA)<<'\n';
-          if (schType_OFDMA != 1) //1 is for OFDMA and TDMA, 2 is for schType_OFDMA and 3 is for FlexOFDMA
+          //std::cout << "SchedulerType with OFDMA Access Mode (1 = 5GL-OFDMA, 2 = Sym-OFDMA, 3 = RB-OFDMA): "<< uint32_t(schType_OFDMA)<<'\n';
+          if (schType_OFDMA != 1) //1 is for 5G_OFDMA, 2 is for sym_OFDMA and 3 is for RB_OFDMA
           {
               if (GetBandwidthInRbg ()-spoint->m_rbg <= 1)
                 {
