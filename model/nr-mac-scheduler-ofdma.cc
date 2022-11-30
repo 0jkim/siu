@@ -838,7 +838,6 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
 
                 for (uint8_t ii = 0; ii <= v_rbgAssignable.size(); ii++)
                 {
-                    std::cout<< "The value v_rbgAssignable[ii]: " << v_rbgAssignable[ii] << '\n';
                     if(v_rbgAssignable[ii] == 0)
                     {
                         v_rbgAssignable[ii] = 1000;
@@ -853,12 +852,6 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                         double numSym = ceil(rbPacket/(v_rbgAssignable[ii]*numRbgAssignable));
                         if (rbPacket%(v_rbgAssignable[ii]*numRbgAssignable)!= 0){numSym = rbPacket/(v_rbgAssignable[ii]*numRbgAssignable) +1;} //ceil
                         rbAssignableMin = uint32_t(v_rbgAssignable[ii]*numRbgAssignable*numSym - rbPacket);
-                        //rbAssignableMin = uint32_t(v_rbgAssignable[ii]*ceil(rbPacket/v_rbgAssignable[ii]) - rbPacket);
-
-                        std::cout << "Left symbols: " << rbAssignableMin << " with RBpacket: "<<rbPacket<< '\n';
-                        std::cout << "Debug: v_rbgAssignable[ii] = " << uint32_t(v_rbgAssignable[ii])
-                                  << " with Symbols: "<< uint32_t(numSym)
-                                  << " and packet RBs: " << rbPacket << '\n';
 
                         if (rbAssignableMin < rbAssignableMinStored)
                         {
@@ -875,11 +868,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
             }
 
 
-            if (m_schType_OFDMA==3)
-            {
-                //rbgAssignable = 2;
-            }
-            else
+            if (m_schType_OFDMA==2)
             {
                 rbgAssignable = 2;
             }
@@ -1147,15 +1136,14 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                                   assigned.m_rbg += rbgAssignable;
                                   GetRBcounter(*UeScheduling) = GetUe (*schedInfoIt)->m_ulRBG  ;
                                   GetUeRBGcounter(*UeScheduling_sym)= ueSchedVector;
-                              if (resources > rbgAssignable)
-                              {
-                                  resources -= rbgAssignable;
-                               }
-                               else
-                               {
-                                   resources = 1;
-                               }
-
+                                  if (resources > rbgAssignable)
+                                  {
+                                     resources -= rbgAssignable;
+                                  }
+                                  else
+                                  {
+                                      resources = 1;
+                                  }
                                   goto UEscheduled;
                                }
                             else
@@ -1164,8 +1152,14 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                                 // Apply constraint for RBOFDMA: copy the same number
                                 // of RBs even if it does not need all of them.
                                 GetUe (*schedInfoIt)->m_ulRBG += GetRB(*UeScheduling);
-                                assigned.m_rbg = GetUe (*schedInfoIt)->m_ulRBG;
-
+                                if (m_schType_OFDMA==2)
+                                {
+                                    assigned.m_rbg = GetUe (*schedInfoIt)->m_ulRBG;
+                                }
+                                else
+                                {
+                                    assigned.m_rbg += GetRB(*UeScheduling) ;
+                                }
                                 resources -= GetRB(*UeScheduling);
 
                                 goto UEscheduled;
