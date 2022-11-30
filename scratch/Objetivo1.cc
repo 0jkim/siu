@@ -60,6 +60,7 @@ static bool g_rxRxRlcPDUCallbackCalled = false;
  */
 Time g_txPeriod = Seconds(0.1);
 Time delay;
+std::fstream m_ScenarioFile;
 
 
 /*
@@ -73,12 +74,12 @@ public:
   MyModel ();
   virtual ~MyModel();
 
-  void Setup (Ptr<NetDevice> device, Address address, uint32_t packetSize, uint32_t nPackets, DataRate dataRate);
+  void Setup (Ptr<NetDevice> device, Address address, uint32_t packetSize, uint32_t nPackets, DataRate dataRate, uint8_t period, uint32_t deadline);
 
   void SendPacket ();
   void SendPacketUl ();
   void ScheduleTx (void);
-  void ScheduleTxUl (void);
+  void ScheduleTxUl (uint8_t period);
   void ScheduleTxUl_Configuration();
 
 private:
@@ -92,8 +93,8 @@ private:
   EventId         m_sendEvent;
   bool            m_running;
   uint32_t        m_packetsSent;
-
-
+  uint8_t         m_periodicity;
+  uint32_t        m_deadline;
 };
 
 
@@ -105,7 +106,9 @@ MyModel::MyModel ()
     m_dataRate (0),
     m_sendEvent (),
     m_running (false),
-    m_packetsSent (0)
+    m_packetsSent (0),
+    m_periodicity(0),
+    m_deadline(0)
 {
 }
 
@@ -115,7 +118,7 @@ MyModel::~MyModel()
 }
 
 
-void MyModel::Setup (Ptr<NetDevice> device, Address address, uint32_t packetSize, uint32_t nPackets, DataRate dataRate)
+void MyModel::Setup (Ptr<NetDevice> device, Address address, uint32_t packetSize, uint32_t nPackets, DataRate dataRate, uint8_t period, uint32_t deadline)
 {
   m_device = device;
   m_packetSize = packetSize;
@@ -123,6 +126,8 @@ void MyModel::Setup (Ptr<NetDevice> device, Address address, uint32_t packetSize
   m_dataRate = dataRate;
   m_running = true;
   m_packetsSent = 0;
+  m_periodicity = period;
+  m_deadline = deadline;
 }
 
 /*
@@ -148,7 +153,7 @@ void StartApplicationUl (Ptr<MyModel> model)
  */
 void MyModel::SendPacket ()
 {
-  Ptr<Packet> pkt = Create<Packet> (m_packetSize);
+  Ptr<Packet> pkt = Create<Packet> (m_packetSize,m_periodicity,m_deadline);
   Ipv4Header ipv4Header;
   ipv4Header.SetProtocol(UdpL4Protocol::PROT_NUMBER);
   pkt->AddHeader(ipv4Header);
@@ -165,7 +170,7 @@ void MyModel::SendPacket ()
 
 void MyModel::SendPacketUl ()
 {
-  Ptr<Packet> pkt = Create<Packet> (m_packetSize);
+  Ptr<Packet> pkt = Create<Packet> (m_packetSize,m_periodicity, m_deadline);
   Ipv4Header ipv4Header;
   ipv4Header.SetProtocol(UdpL4Protocol::PROT_NUMBER);
   pkt->AddHeader(ipv4Header);
@@ -177,7 +182,7 @@ void MyModel::SendPacketUl ()
 	  m_packetsSent = 1;
   }else if (++m_packetsSent < m_nPackets) //m_nPackets = Ns
     {
-      ScheduleTxUl ();
+      ScheduleTxUl (m_periodicity);
     }
 }
 
@@ -197,41 +202,109 @@ void MyModel::ScheduleTx (void)
 }
 
 // CG Periodic UL transmissions
-void MyModel::ScheduleTxUl (void)
+void MyModel::ScheduleTxUl (uint8_t period)
 {
   if (m_running)
     {
-        uint8_t CGPeriod = 10;
-        Time tNext = MilliSeconds(CGPeriod);	
-    	m_sendEvent = Simulator::Schedule (tNext, &MyModel::SendPacketUl, this);
+        Time tNext = MilliSeconds(period);
+        m_sendEvent = Simulator::Schedule (tNext, &MyModel::SendPacketUl, this);
     }
 }
 
-// UL transmission for configuration 
-void MyModel::ScheduleTxUl_Configuration (void) 
+// UL transmission for configuration
+void MyModel::ScheduleTxUl_Configuration (void)
 {
-    uint8_t configurationTime = 30;
+    uint8_t configurationTime = 60;
     Time tNext = MilliSeconds(configurationTime);
     m_sendEvent = Simulator::Schedule (tNext, &MyModel::SendPacketUl, this);
+}
+
+struct RandomGenerator {
+    int maxValue;
+    RandomGenerator(int max) :
+            maxValue(max) {
+    }
+    int operator()() {
+        return (1+rand() % maxValue);
+    }
+};
+
+/**
+ * Function that prints out PDCP delay. This function is designed as a callback
+ * for PDCP trace source.
+ * @param path The path that matches the trace source
+ * @param rnti RNTI of UE
+ * @param lcid logical channel id
+ * @param bytes PDCP PDU size in bytes
+ * @param pdcpDelay PDCP delay
+ */
+void
+RxPdcpPDU (std::string path, uint16_t rnti, uint8_t lcid, uint32_t bytes, uint64_t pdcpDelay)
+{
+  std::cout << "\n Packet PDCP delay:" << pdcpDelay << "\n";
+  g_rxPdcpCallbackCalled = true;
+}
+
+/**
+ * Function that prints out RLC statistics, such as RNTI, lcId, RLC PDU size,
+ * delay. This function is designed as a callback
+ * for RLC trace source.
+ * @param path The path that matches the trace source
+ * @param rnti RNTI of UE
+ * @param lcid logical channel id
+ * @param bytes RLC PDU size in bytes
+ * @param rlcDelay RLC PDU delay
+ */
+void
+RxRlcPDU (std::string path, uint16_t rnti, uint8_t lcid, uint32_t bytes, uint64_t rlcDelay)
+{
+  std::cout << "\n\n Data received at RLC layer at:" << Simulator::Now () << std::endl;
+  std::cout << "\n rnti:" << rnti << std::endl;
+  //std::cout << "\n lcid:" << (unsigned)lcid << std::endl;
+  //std::cout << "\n bytes :" << bytes << std::endl;
+  std::cout << "\n delay :" << rlcDelay << std::endl;
+  g_rxRxRlcPDUCallbackCalled = true;
+
+
+  m_ScenarioFile << "\n\n Data received at RLC layer at:"  << Simulator::Now () << std::endl;
+  m_ScenarioFile << "\n rnti:" << rnti  << std::endl;
+  m_ScenarioFile << "\n delay :" << rlcDelay << std::endl;
+}
+
+
+
+/**
+ * Function that connects UL PDCP and RLC traces to the corresponding trace sources.
+ */
+void
+ConnectUlPdcpRlcTraces ()
+{
+  Config::Connect ("/NodeList/*/DeviceList/*/LteEnbRrc/UeMap/*/DataRadioBearerMap/*/LtePdcp/RxPDU",
+                   MakeCallback (&RxPdcpPDU));
+
+  Config::Connect ("/NodeList/*/DeviceList/*/LteEnbRrc/UeMap/*/DataRadioBearerMap/*/LteRlc/RxPDU",
+                   MakeCallback (&RxRlcPDU));
 }
 
 
 int
 main (int argc, char *argv[]){
 
-    uint16_t numerologyBwp1 = 2;  
-    uint32_t udpPacketSize = 10;
+    uint16_t numerologyBwp1 = 1;
     double centralFrequencyBand1 = 3550e6;
     double bandwidthBand1 = 20e6;
-
+    uint32_t udpPacketSize = 10;
 
     uint16_t gNbNum = 1;
-    uint16_t ueNumPergNb = 4; 
+    uint16_t ueNumPergNb = 15; //4
     bool enableUl = true;
     uint32_t nPackets = 100;
     Time sendPacketTime = Seconds(0.2);
 
     delay = MicroSeconds(10);
+
+    //uint8_t period = uint8_t(5);//10
+    uint32_t simulationNumber = 1;
 
     CommandLine cmd;
     cmd.AddValue ("numerologyBwp1",
@@ -249,9 +322,121 @@ main (int argc, char *argv[]){
     cmd.AddValue ("enableUl",
                   "Enable Uplink",
                   enableUl);
+    cmd.AddValue ("ueNumPergNb",
+                  "Num UE per Gnb",
+                  ueNumPergNb);
+    cmd.AddValue ("simulationNumber",
+                  "Obtain the same simulation parameter, for results",
+                  simulationNumber);
     cmd.Parse (argc, argv);
 
     int64_t randomStream = 1;
+    std::vector<uint32_t> v_init(ueNumPergNb);
+    std::vector<uint32_t> v_period(ueNumPergNb);
+    std::vector<uint32_t> v_deadline(ueNumPergNb);
+
+
+   /* std::ifstream myfile("/home/ana/nr-ConfiguredGrant/ns-3-dev/ScenarioAnalysis.txt");
+    std::string line;
+    std::string properline;
+
+
+    if (!myfile.is_open())
+    {
+        std:: cout << "Failed to open file\n";
+    }
+    else
+    {
+        std:: cout << "Opened successfuly\n";
+        while (getline (myfile,line))
+        {
+            if (getline(myfile, line, '['))
+            {
+                uint32_t number;
+                myfile >> number;
+                if (number == simulationNumber)
+                {
+                    if (getline(myfile, line, 'y'))
+                    {
+                        std::cout << line <<'\n';
+                        myfile >> ueNumPergNb;
+                        std::cout << "Number of UEs = " << ueNumPergNb<<'\n';
+
+
+                        v_init = std::vector<uint32_t> (ueNumPergNb,{0});
+                        for (int val = 0; val < ueNumPergNb; val++)
+                        {
+                            myfile >> v_init[val];
+                        }
+
+
+                        v_deadline = std::vector<uint32_t> (ueNumPergNb,{0});
+                        for (int val = 0; val < ueNumPergNb; val++)
+                        {
+                            myfile >> v_deadline[val];
+                        }
+
+
+                        v_period = std::vector<uint32_t> (ueNumPergNb,{0});
+                        for (int val = 0; val < ueNumPergNb; val++)
+                        {
+                            myfile >> v_period[val];
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        myfile.close();
+    }*/
+
+
+    std::vector<uint32_t> v_packet(ueNumPergNb);
+    v_packet = std::vector<uint32_t> (ueNumPergNb,{10});
+
+    std::cout << "\n Init values: " << '\n';
+
+    //
+    v_init = std::vector<uint32_t> (ueNumPergNb,{100000});
+
+    for (int val : v_init)
+            std::cout << val << std::endl;
+
+    std::cout << "Deadline values: " << '\n';
+
+    //
+    v_deadline = std::vector<uint32_t> (ueNumPergNb,{2000});
+
+    for (int val : v_deadline)
+            std::cout << val << std::endl;
+
+    std::cout << "Packet values: " << '\n';
+    for (int val : v_packet)
+            std::cout << val << std::endl;
+
+    std::cout << "Period values: " << '\n';
+
+    //
+    v_period = std::vector<uint32_t> (ueNumPergNb,{10});
+
+    for (int val : v_period)
+            std::cout << val << "\t";
+
+
+    m_ScenarioFile.open("Scenario.txt", std::ofstream::out | std::ofstream::trunc);
+
+    std::ostream_iterator<std::uint32_t> output_iterator(m_ScenarioFile, "\n");
+    m_ScenarioFile <<  "Nº UE" << "\t" << "Init" << "\t" <<
+                       "Latencia" << "\t" << "Periodicity" << std::endl;
+
+    m_ScenarioFile <<ueNumPergNb << std::endl;
+    std::copy(v_init.begin(), v_init.end(),  output_iterator);
+    m_ScenarioFile << std::endl;
+    std::copy(v_deadline.begin(), v_deadline.end(), output_iterator);
+    m_ScenarioFile << std::endl;
+    std::copy(v_period.begin(), v_period.end(), output_iterator);
+    m_ScenarioFile << std::endl;
+
 
     //Create the scenario
     GridScenarioHelper gridScenario;
@@ -279,8 +464,8 @@ main (int argc, char *argv[]){
     // Scheduler type: configured grant or grant based
     /* false -> grant based : true -> configured grant */
     bool scheduler_CG = true;
-    uint8_t configurationTime = 30;
-    uint8_t CGPeriod = 10;
+    uint8_t configurationTime = 60;//60
+
     if (scheduler_CG)
       {
         // UE
@@ -295,11 +480,8 @@ main (int argc, char *argv[]){
         // UE
         // MAC
         nrHelper->SetUeMacAttribute ("ConfigurationTime", UintegerValue (configurationTime));
-        nrHelper->SetUeMacAttribute ("CGPeriod", UintegerValue (CGPeriod)); 
         // PHY
         nrHelper->SetUePhyAttribute ("ConfigurationTime", UintegerValue (configurationTime));
-        nrHelper->SetUePhyAttribute ("CGPeriod", UintegerValue (CGPeriod)); 
-
         // gNB
         // MAC
         nrHelper->SetGnbMacAttribute ("ConfigurationTime", UintegerValue (configurationTime));
@@ -331,8 +513,9 @@ main (int argc, char *argv[]){
 
     // Configure scheduler (TDMA (comment), or FlexTDMA, FlexOFDMA (uncomment))
      nrHelper->SetSchedulerTypeId (NrMacSchedulerOfdmaRR::GetTypeId ()); // Comment out this line if you want to use TDMA
-     nrHelper->SetSchedulerAttribute ("FlexTDMA", BooleanValue (true)); // True if you want to use FlexTDMA and false if
-                                                                        // you want to use FlexOFDMA
+     nrHelper->SetSchedulerAttribute ("m_schType_OFDMA", UintegerValue (2)); // 1 for 5GL-OFDMA
+                                                                      // 2 for Sym-OFDMA
+                                                                      // 3 For RB-OFDMA
 
     // Create one operational band containing one CC with one bandwidth part
     BandwidthPartInfoPtrVector allBwps;
@@ -353,7 +536,7 @@ main (int argc, char *argv[]){
 
     // For CG it has to be true
     nrHelper->SetSchedulerAttribute ("FixedMcsUl", BooleanValue (true));
-    nrHelper->SetSchedulerAttribute ("StartingMcsUl", UintegerValue(6));
+    nrHelper->SetSchedulerAttribute ("StartingMcsUl", UintegerValue(12));
 
     nrHelper->SetChannelConditionModelAttribute ("UpdatePeriod", TimeValue (MilliSeconds (0)));
     nrHelper->SetPathlossAttribute ("ShadowingEnabled", BooleanValue (false)); //false
@@ -415,43 +598,37 @@ main (int argc, char *argv[]){
     Ipv4InterfaceContainer ueIpIface;
     ueIpIface = epcHelper->AssignUeIpv4Address (NetDeviceContainer (ueNetDev));
 
-    // Create a model for each UE
-    Ptr<MyModel> modelUl_1 = CreateObject<MyModel> ();
-    Ptr<MyModel> modelUl_2 = CreateObject<MyModel> ();
-    Ptr<MyModel> modelUl_3 = CreateObject<MyModel> ();
-    Ptr<MyModel> modelUl_4 = CreateObject<MyModel> ();
 
-    // Setup configuration from UE to gNB in order to execute UL transmissions
-    modelUl_1 -> Setup(ueNetDev.Get(0), enbNetDev.Get(0)->GetAddress(), udpPacketSize, nPackets, DataRate("1Mbps")); //1Mbps
-    modelUl_2 -> Setup(ueNetDev.Get(1), enbNetDev.Get(0)->GetAddress(), udpPacketSize, nPackets, DataRate("1Mbps"));
-    modelUl_3 -> Setup(ueNetDev.Get(2), enbNetDev.Get(0)->GetAddress(), udpPacketSize, nPackets, DataRate("1Mbps"));
-    modelUl_4 -> Setup(ueNetDev.Get(3), enbNetDev.Get(0)->GetAddress(), udpPacketSize, nPackets, DataRate("1Mbps"));
+    // Create a model for a UE, setup configuration and schedule it
 
-    // Schedule the event of Start Application
-    /*Simulator::Schedule(Seconds(0.10005), &StartApplicationUl, modelUl_1);
-    Simulator::Schedule(Seconds(0.1001), &StartApplicationUl, modelUl_2);
-    Simulator::Schedule(Seconds(0.10015), &StartApplicationUl, modelUl_3);
-    Simulator::Schedule(Seconds(0.1002), &StartApplicationUl, modelUl_4);*/
+   // std::vector<int> packets(3);
+   // packets = {150, 10, 10};
 
-    // Here we define in which time instant we want to transmit the periodical data packet
-    Simulator::Schedule(Seconds(0.10005), &StartApplicationUl, modelUl_1); //0.10005 Problemas Period //0.100
-    Simulator::Schedule(Seconds(0.1001), &StartApplicationUl, modelUl_2); //0.1001 //0.101
-    Simulator::Schedule(Seconds(0.101), &StartApplicationUl, modelUl_3); //0.101 //0.102
-    Simulator::Schedule(Seconds(0.1025), &StartApplicationUl, modelUl_4); // 0.1025 // 0.103
-
+    std::vector <Ptr<MyModel>> v_modelUl;
+    v_modelUl = std::vector<Ptr<MyModel>> (ueNumPergNb,{0});
+    for (uint8_t ii=0; ii<ueNumPergNb; ++ii)
+    {
+        Ptr<MyModel> modelUl = CreateObject<MyModel> ();
+        modelUl -> Setup(ueNetDev.Get(ii), enbNetDev.Get(0)->GetAddress(), v_packet[ii], nPackets, DataRate("1Mbps"),v_period[ii], v_deadline[ii]);
+        v_modelUl[ii] = modelUl;
+        Simulator::Schedule(MicroSeconds(v_init[ii]), &StartApplicationUl, v_modelUl[ii]);
+    }
 
    // attach UEs to the closest eNB
    nrHelper->AttachToClosestEnb (ueNetDev, enbNetDev);
 
    nrHelper->EnableTraces();
 
-    Simulator::Stop (Seconds (0.4)); //0.4 //11
+   Simulator::Schedule (Seconds (0.16), &ConnectUlPdcpRlcTraces);
+
+    Simulator::Stop (Seconds (0.2)); //0.4 //11
     Simulator::Run ();
 
     std::cout<<"\n La conexión (Config::Connect) se llama desde el main. "<<std::endl;
 
     if (g_rxPdcpCallbackCalled && g_rxRxRlcPDUCallbackCalled)
       {
+        NS_LOG_INFO ("EXIT_SUCCESS");
         return EXIT_SUCCESS;
       }
     else
