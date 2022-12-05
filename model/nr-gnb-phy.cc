@@ -199,7 +199,7 @@ NrGnbPhy::GetTypeId (void)
                   MakeBooleanChecker ())
     .AddAttribute ("ConfigurationTime",
                   "Time required to configure UE with configured grant signal",
-                   UintegerValue (30),
+                   UintegerValue (60),
                    MakeUintegerAccessor (&NrGnbPhy::SetConfigurationTime,
                                          &NrGnbPhy::GetConfigurationTime),
                     MakeUintegerChecker<uint8_t> ())
@@ -1923,6 +1923,7 @@ NrGnbPhy::ChannelAccessLost ()
 }
 
 //Configured Grant
+
 
 uint8_t
 NrGnbPhy::GetConfigurationTime () const

@@ -1812,7 +1812,7 @@ NrMacSchedulerNs3::DoScheduleUlSr (PointInFTPlane *spoint, const std::list<uint1
       for (auto & ulLcg : NrMacSchedulerUeInfo::GetUlLCG (m_ueMap.at (v)))
         {
           NS_LOG_DEBUG ("Assigning 12 bytes to UE " << v << " because of a SR");
-          ulLcg.second->UpdateInfo (22); //12 (22 as it is the header of IPv4)
+          ulLcg.second->UpdateInfo (22); //(22 as it is the header of IPv4)
         }
     }
 }

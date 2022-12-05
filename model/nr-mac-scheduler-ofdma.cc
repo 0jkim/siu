@@ -638,7 +638,7 @@ NrMacSchedulerOfdma::GetTpc () const
   return 1; // 1 is mapped to 0 for Accumulated mode, and to -1 in Absolute mode TS38.213 Table Table 7.1.1-1
 }
 
-// Configured Grant - New schedulers (SymOFDMA and RBOFDMA)
+// Configured Grant - New schedulers (Sym-OFDMA and RB-OFDMA)
 
 NrMacSchedulerNs3::BeamSymbolMap
 NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl) const
@@ -882,8 +882,6 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
 
             while (resources > 0)
               {
-
-
                 auto schedInfoIt = ueVector.begin ();
 
                 uint32_t vectorSize = ueVector.size();
@@ -1097,7 +1095,6 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                     initSym = 1;
                     nextSymbol = 1;
 
-                    //if(ueSchedVectorFirstSym.size()>1 || ueSchedVector.size()>1)
                     if(ueSchedVectorFirstSym.size()>1)
                       {
                       auto schedInfoIt = ueVector.begin ();

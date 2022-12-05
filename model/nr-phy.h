@@ -417,7 +417,6 @@ public:
   virtual Time GetTbUlEncodeLatency () const;
   virtual void SetTbUlEncodeLatency (const Time &us);
 
-
 protected:
   /**
    * \brief DoDispose method inherited from Object

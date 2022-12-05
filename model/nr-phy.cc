@@ -164,6 +164,7 @@ NrMemberPhySapProvider::GetTbUlEncodeLatency() const
   return m_phy-> GetTbUlEncodeLatency();
 }
 
+
 /* ======= */
 
 TypeId
@@ -932,6 +933,5 @@ NrPhy::GetTbUlEncodeLatency (void) const
 {
   return m_tbUlEncodeLatencyUs;
 }
-
 
 }
