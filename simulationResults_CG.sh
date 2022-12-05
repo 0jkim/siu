@@ -8,9 +8,9 @@ export 'NS_LOG=ConfiguredGrant=level_all|prefix_func|prefix_time:NrUePhy=level_a
 
 
 ## Initialization
-declare -A sch # sch type
-MAXCOUNT=1
-count=1
+declare -A sch # sch type 0 = 5G-TDMA, 1 = 5G-OFDMA, 2 = Sym-OFDMA, 3 = RB-OFDMA
+MAXCOUNT=3
+count=0
 declare -A aux 
 count_aux=1
 
@@ -33,7 +33,7 @@ cd ..
 
 while [ "$count" -le $MAXCOUNT ];
 do
- echo "$count" 
+ echo " Selected scheduling Type: $count" 
  sch[$count]=$count
 
  let "count_aux = 1"
@@ -51,8 +51,8 @@ do
  
  for j in "${!aux[@]}";
  do
-   echo "========Scheduling Type: $count (0 = 5G-TDMA, 1 = 5G-OFDMA, 2 = Sym-OFDMA, 3 = RB-OFDMA) and BW ${aux[$j]}============" 
-   echo "${aux[$j]}"
+   echo "========Scheduling Types: $count (0 = 5G-TDMA, 1 = 5G-OFDMA, 2 = Sym-OFDMA, 3 = RB-OFDMA) and BW ${aux[$j]} [Hz] ============" 
+   echo "BW = ${aux[$j]} [Hz]"
    ./ns3 run "scratch/ConfiguredGrant_firstTest --bandwidthBand1="${aux[$j]}" --scheduler="${sch[$count]}"" > r_aux_"${aux[$j]}"_sch_"${sch[$count]}".out 2>&1 
    #./ns3 run "scratch/ConfiguredGrant_firstTest --packetSize="${aux[$j]}" --scheduler="${sch[$count]}"" > r_aux_"${aux[$j]}"_sch_"${sch[$count]}".out 2>&1 
 
