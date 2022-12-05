@@ -241,13 +241,6 @@ RxPdcpPDU (std::string path, uint16_t rnti, uint8_t lcid, uint32_t bytes, uint64
   g_rxPdcpCallbackCalled = true;
 }
 
-//void ConnectPdcpRlcTraces ()
-//{
-//  Config::Connect ("/NodeList/*/DeviceList/*/LteUeRrc/DataRadioBearerMap/*/LteRlc/RxPDU",
-//                      MakeCallback (&RxRlcPDU));
-//  NS_LOG_INFO ("Received PDCP RLC DL");
-//}
-
 void
 ConnectUlPdcpRlcTraces ()
 {
@@ -262,8 +255,6 @@ ConnectUlPdcpRlcTraces ()
 
 int
 main (int argc, char *argv[]){
-
-  //BWP 1 (UL)
     uint16_t numerologyBwp1 = 1;
     uint32_t udpPacketSize = 10;
     double centralFrequencyBand1 = 3550e6;
@@ -307,13 +298,12 @@ main (int argc, char *argv[]){
     std::vector<uint32_t> v_packet(ueNumPergNb);
 
     std::cout << "\n Init values: " << '\n';
-    // NOTE: If the RB-OFDMA scheduler is used, the generation time of the packets must be the same
     v_init = std::vector<uint32_t> (ueNumPergNb,{100000});
     for (int val : v_init)
             std::cout << val << std::endl;
 
     std::cout << "Deadline values: " << '\n';
-    v_deadline = std::vector<uint32_t> (ueNumPergNb,{2000});
+    v_deadline = std::vector<uint32_t> (ueNumPergNb,{10000000});
     for (int val : v_deadline)
             std::cout << val << std::endl;
 
@@ -369,12 +359,10 @@ main (int argc, char *argv[]){
 
     // Scheduler type: configured grant or grant based
     /* false -> grant based : true -> configured grant */
-    bool scheduler_CG = false;
+    bool scheduler_CG = true;
     uint8_t configurationTime = 60;
     if (scheduler_CG)
       {
-        nrHelper->SetGnbPhyAttribute ("TbUlEncodeLatency", TimeValue (MicroSeconds (50)));
-
         // UE
         nrHelper->SetUeMacAttribute ("CG", BooleanValue (true));
         nrHelper->SetUePhyAttribute ("CG", BooleanValue (true));
@@ -385,17 +373,12 @@ main (int argc, char *argv[]){
 
         //Configuration time and CG periodicity
         // UE
-        // MAC
         nrHelper->SetUeMacAttribute ("ConfigurationTime", UintegerValue (configurationTime));
-        // PHY
         nrHelper->SetUePhyAttribute ("ConfigurationTime", UintegerValue (configurationTime));
 
         // gNB
-        // MAC
         nrHelper->SetGnbMacAttribute ("ConfigurationTime", UintegerValue (configurationTime));
-        // PHY
         nrHelper->SetGnbPhyAttribute ("ConfigurationTime", UintegerValue (configurationTime));
-
       }
     else
       {
@@ -422,11 +405,12 @@ main (int argc, char *argv[]){
     nrHelper->SetSchedulerAttribute ("EnableHarqReTx", BooleanValue (false));
     Config::SetDefault ("ns3::NrHelper::HarqEnabled", BooleanValue (false));
 
-    // Configure scheduler // Comment out the following two lines if you want to use 5GL-TDMA (5G LENA TDMA)
-    if (sch != 0) // sch = 0 -> TDMA
+    // Select scheduler
+    if (sch != 0) 
     {
         nrHelper->SetSchedulerTypeId (NrMacSchedulerOfdmaRR::GetTypeId ());
-        nrHelper->SetSchedulerAttribute ("schOFDMA", UintegerValue (sch)); // 1 for 5GL-OFDMA
+        nrHelper->SetSchedulerAttribute ("schOFDMA", UintegerValue (sch)); // sch = 0 -> TDMA
+                                                                           // 1 for 5GL-OFDMA
                                                                            // 2 for Sym-OFDMA
                                                                            // 3 For RB-OFDMA
     }
@@ -455,7 +439,8 @@ main (int argc, char *argv[]){
     nrHelper->SetPathlossAttribute ("ShadowingEnabled", BooleanValue (true)); //false
 
     // Error Model: UE and GNB with same spectrum error model.
-    std::string errorModel = "ns3::NrEesmIrT1"; // ns3::NrEesmIrT2 (256QAM), ns3::NrEesmIrT1 (64QAM) more robust but with less througput
+    // ns3::NrEesmIrT2 (256QAM), ns3::NrEesmIrT1 (64QAM) more robust but with less througput
+    std::string errorModel = "ns3::NrEesmIrT1"; 
     nrHelper->SetUlErrorModel (errorModel);
     nrHelper->SetDlErrorModel (errorModel);
 
@@ -463,7 +448,7 @@ main (int argc, char *argv[]){
     nrHelper->SetGnbDlAmcAttribute ("AmcModel", EnumValue (NrAmc::ErrorModel)); // NrAmc::ShannonModel or NrAmc::ErrorModel
     nrHelper->SetGnbUlAmcAttribute ("AmcModel", EnumValue (NrAmc::ErrorModel)); // NrAmc::ShannonModel or NrAmc::ErrorModel
 
-    bool fadingEnabled = true; //false//true si quiero añadir fading (si no solo tengo un canal con un pathloss)
+    bool fadingEnabled = true; 
     auto bandMask = NrHelper::INIT_PROPAGATION | NrHelper::INIT_CHANNEL;
     if (fadingEnabled)
       {
@@ -528,7 +513,7 @@ main (int argc, char *argv[]){
    nrHelper->EnableTraces();
    Simulator::Schedule (Seconds (0.16), &ConnectUlPdcpRlcTraces);
 
-    Simulator::Stop (Seconds (0.2)); //0.4 //11
+    Simulator::Stop (Seconds (0.2)); 
     Simulator::Run ();
 
     std::cout<<"\n FIN. "<<std::endl;
