@@ -22,14 +22,10 @@
  * dynamic or configured grant (CG) schedulers (both schedulers cannot work simultaneously).
  *
  * In case of CG, a configuration time is selected. In this time, the UEs transmit
- * their requirements to the gNB to receive a CG with the information of
- * where to transmit their packet.
+ * their requirements to the gNB. The gNB creates a CG for each UE.
  *
- *
- *
- * You can use OFDMA or TDMA by default as the access mode.
- * However, we include two new scheduling policies for use with OFDMA access mode.
- *
+ * You can use OFDMA or TDMA access mode.
+ * However, we include two new scheduling policies to use with OFDMA access mode.
  *
  * This code is based on "cttc-3gpp-channel-simple-ran.cc" (5G-LENA) code.
  */
