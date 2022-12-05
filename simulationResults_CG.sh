@@ -1,5 +1,8 @@
 #! /bin/bash
 echo "Hello World"
+# This document can be used to simulate the four types of schedulers implemented in [1] based on configured grant or dynamic scheduling. In the case of OFDMA access mode, two new techniques have been implemented in addition to the existing 5G-LENA OFDMA. These two techniques are Sym-OFDMA and RB-OFMDA [1].
+# [1] A. Larrañaga et al. "An open-source implmentation and validation of 5G NR Configured-Grant for URLLC in ns-3 5G-LENA: a scheduling case study in Industry 4.0 scenario", Pre-print SSRN Electonics
+
 
 export 'NS_LOG=ConfiguredGrant=level_all|prefix_func|prefix_time:NrUePhy=level_all|prefix_func|prefix_time:NrUeMac=level_all|prefix_func|prefix_time:NrMacSchedulerNs3=level_all|prefix_func|prefix_time:LteRlcUm=level_all|prefix_func|prefix_time:NrGnbPhy=level_all|prefix_func|prefix_time:NrGnbMac=level_all|prefix_func|prefix_time:NrMacSchedulerOfdma=level_all|prefix_func|prefix_time'
 
