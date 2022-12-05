@@ -107,7 +107,7 @@ Then we are going to create a log to see a simple configuration of configured gr
 ```
 export 'NS_LOG=ConfiguredGrant=level_all|prefix_func|prefix_time:NrUePhy=level_all|prefix_func|prefix_time:NrUeMac=level_all|prefix_func|prefix_time:NrMacSchedulerNs3=level_all|prefix_func|prefix_time:LteRlcUm=level_all|prefix_func|prefix_time:NrGnbPhy=level_all|prefix_func|prefix_time:NrGnbMac=level_all|prefix_func|prefix_time:NrMacSchedulerOfdma=level_all|prefix_func|prefix_time:NrSpectrumPhy=level_all|prefix_func|prefix_time:BwpManagerGnb=level_all|prefix_func|prefix_time:NrMacSchedulerHarqRr=level_all|prefix_func|prefix_time' 
 
-./ns3 run scratch/ConfiguredGrant_TDD > ConfiguredGrant_firstTest.out 2>&1
+./ns3 run scratch/ConfiguredGrant_firstTest > ConfiguredGrant_firstTest.out 2>&1
 ```
 
 ## Documentation
