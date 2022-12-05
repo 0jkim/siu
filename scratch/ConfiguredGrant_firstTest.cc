@@ -18,13 +18,20 @@
  */
 
 /*
- * Description: This code transmits 100 packets from gNB to UE. In oder to do that,
- * there are two different branches, one that obtains the reception information and
- * another one that transmits the packets. These two branches (each one with two functions)
- * are executed for every single packet. The packets are scheduled in TDD mode, and they are
- * transmitted one after another.
+ * Description: This code transmits 100 packets from UE to the gNB. It works with
+ * dynamic or configured grant (CG) schedulers (both schedulers cannot work simultaneously).
  *
- * This code is based on "cttc-3gpp-channel-simple-ran.cc" (5G-LENA) and "fifth.cc" (ns3 Examples) codes.
+ * In case of CG, a configuration time is selected. In this time, the UEs transmit
+ * their requirements to the gNB to receive a CG with the information of
+ * where to transmit their packet.
+ *
+ *
+ *
+ * You can use OFDMA or TDMA by default as the access mode.
+ * However, we include two new scheduling policies for use with OFDMA access mode.
+ *
+ *
+ * This code is based on "cttc-3gpp-channel-simple-ran.cc" (5G-LENA) code.
  */
 
 #include "ns3/core-module.h"
@@ -65,7 +72,7 @@ std::fstream m_ScenarioFile;
 
 
 /*
- * MyModel class. It contains the scheduling function.
+ * MyModel class. It contains the function that generates the event to send a packet from the UE to the gNB
 */
 
 class MyModel : public Application
@@ -77,9 +84,7 @@ public:
 
   void Setup (Ptr<NetDevice> device, Address address, uint32_t packetSize, uint32_t nPackets, DataRate dataRate, uint8_t period, uint32_t deadline);
 
-  void SendPacket ();
   void SendPacketUl ();
-  void ScheduleTx (void);
   void ScheduleTxUl (uint8_t period);
   void ScheduleTxUl_Configuration();
 
@@ -132,18 +137,13 @@ void MyModel::Setup (Ptr<NetDevice> device, Address address, uint32_t packetSize
 }
 
 /*
- * This is the first event that is executed.
+ * This is the first event that is executed  and UL, respectively.
  */
-void StartApplication (Ptr<MyModel> model)
-{
-  model -> SendPacket ();
-}
 
 void StartApplicationUl (Ptr<MyModel> model)
 {
   model -> SendPacketUl ();
 }
-
 
 /*
  * Function creates a single packet and directly calls the function send
@@ -152,23 +152,6 @@ void StartApplicationUl (Ptr<MyModel> model)
  * @param addr Destination address for a packet.
  * @param packetSize The packet size.
  */
-void MyModel::SendPacket ()
-{
-  Ptr<Packet> pkt = Create<Packet> (m_packetSize,m_periodicity,m_deadline);
-  Ipv4Header ipv4Header;
-  ipv4Header.SetProtocol(UdpL4Protocol::PROT_NUMBER);
-  pkt->AddHeader(ipv4Header);
-  EpsBearerTag tag (1, 1);
-  pkt->AddPacketTag (tag);
-  m_device->Send (pkt, m_addr, Ipv4L3Protocol::PROT_NUMBER);
-  NS_LOG_INFO ("Sending DL");
-
-  if (++m_packetsSent < m_nPackets) //m_nPackets = Ns
-    {
-      ScheduleTx ();
-    }
-}
-
 void MyModel::SendPacketUl ()
 {
   Ptr<Packet> pkt = Create<Packet> (m_packetSize,m_periodicity,m_deadline);
@@ -188,25 +171,15 @@ void MyModel::SendPacketUl ()
     }
 }
 /*
- * SendPacket creates the packet and it sends based on ScheduleTx scheduler.
+ * SendPacket creates the packet at tNext time instant.
  */
-
-void MyModel::ScheduleTx (void)
-{
-  if (m_running)
-    {
-	    Time tNext = MilliSeconds(2);
-    	m_sendEvent = Simulator::Schedule (tNext, &MyModel::SendPacket, this);
-
-    }
-}
 
 void MyModel::ScheduleTxUl (uint8_t period)
 {
   if (m_running)
     {
-        Time tNext = MilliSeconds(period);	 //1  //10
-    	m_sendEvent = Simulator::Schedule (tNext, &MyModel::SendPacketUl, this);
+      Time tNext = MilliSeconds(period);
+      m_sendEvent = Simulator::Schedule (tNext, &MyModel::SendPacketUl, this);
     }
 }
 
@@ -232,7 +205,6 @@ void RxRlcPDU (std::string path, uint16_t rnti, uint8_t lcid, uint32_t bytes, ui
   m_ScenarioFile << "\n rnti:" << rnti  << std::endl;
   m_ScenarioFile << "\n delay :" << rlcDelay << std::endl;
 }
-
 
 void
 RxPdcpPDU (std::string path, uint16_t rnti, uint8_t lcid, uint32_t bytes, uint64_t pdcpDelay)
@@ -322,7 +294,7 @@ main (int argc, char *argv[]){
 
     std::ostream_iterator<std::uint32_t> output_iterator(m_ScenarioFile, "\n");
     m_ScenarioFile <<  "Nº UE" << "\t" << "Init" << "\t" <<
-                       "Latencia" << "\t" << "Periodicity" << std::endl;
+                       "Latency" << "\t" << "Periodicity" << std::endl;
 
     m_ScenarioFile <<ueNumPergNb << std::endl;
     std::copy(v_init.begin(), v_init.end(),  output_iterator);
@@ -361,37 +333,26 @@ main (int argc, char *argv[]){
     /* false -> grant based : true -> configured grant */
     bool scheduler_CG = true;
     uint8_t configurationTime = 60;
+
+    nrHelper->SetUeMacAttribute ("CG", BooleanValue (scheduler_CG));
+    nrHelper->SetUePhyAttribute ("CG", BooleanValue (scheduler_CG));
+    nrHelper->SetGnbMacAttribute ("CG", BooleanValue (scheduler_CG));
+    nrHelper->SetGnbPhyAttribute ("CG", BooleanValue (scheduler_CG));
+
     if (scheduler_CG)
       {
-        // UE
-        nrHelper->SetUeMacAttribute ("CG", BooleanValue (true));
-        nrHelper->SetUePhyAttribute ("CG", BooleanValue (true));
-
-        // gNB
-        nrHelper->SetGnbMacAttribute ("CG", BooleanValue (true));
-        nrHelper->SetGnbPhyAttribute ("CG", BooleanValue (true));
-
-        //Configuration time and CG periodicity
+        //Configuration time
         // UE
         nrHelper->SetUeMacAttribute ("ConfigurationTime", UintegerValue (configurationTime));
         nrHelper->SetUePhyAttribute ("ConfigurationTime", UintegerValue (configurationTime));
-
         // gNB
         nrHelper->SetGnbMacAttribute ("ConfigurationTime", UintegerValue (configurationTime));
         nrHelper->SetGnbPhyAttribute ("ConfigurationTime", UintegerValue (configurationTime));
       }
     else
       {
-        nrHelper->SetUeMacAttribute ("CG", BooleanValue (false));
-        nrHelper->SetUePhyAttribute ("CG", BooleanValue (false));
-
-        // gNB
-        nrHelper->SetGnbMacAttribute ("CG", BooleanValue (false));
-        nrHelper->SetGnbPhyAttribute ("CG", BooleanValue (false));
-
-        nrHelper->SetSchedulerAttribute ("CG", BooleanValue (false));
+        nrHelper->SetSchedulerAttribute ("CG", BooleanValue (scheduler_CG));
       }
-
 
     nrHelper->SetEpcHelper (epcHelper);
 
@@ -409,10 +370,10 @@ main (int argc, char *argv[]){
     if (sch != 0) 
     {
         nrHelper->SetSchedulerTypeId (NrMacSchedulerOfdmaRR::GetTypeId ());
-        nrHelper->SetSchedulerAttribute ("schOFDMA", UintegerValue (sch)); // sch = 0 -> TDMA
+        nrHelper->SetSchedulerAttribute ("schOFDMA", UintegerValue (sch)); // sch = 0 for TDMA
                                                                            // 1 for 5GL-OFDMA
                                                                            // 2 for Sym-OFDMA
-                                                                           // 3 For RB-OFDMA
+                                                                           // 3 for RB-OFDMA
     }
 
     // Create one operational band containing one CC with one bandwidth part
