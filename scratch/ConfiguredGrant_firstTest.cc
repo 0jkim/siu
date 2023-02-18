@@ -80,6 +80,11 @@ public:
 
   void Setup (Ptr<NetDevice> device, Address address, uint32_t packetSize, uint32_t nPackets, DataRate dataRate, uint8_t period, uint32_t deadline);
 
+  // DL
+  void SendPacketDl ();
+  void ScheduleTxDl ();
+
+  // UL
   void SendPacketUl ();
   void ScheduleTxUl (uint8_t period);
   void ScheduleTxUl_Configuration();
@@ -133,20 +138,60 @@ void MyModel::Setup (Ptr<NetDevice> device, Address address, uint32_t packetSize
 }
 
 /*
- * This is the first event that is executed  and UL, respectively.
+ * This is the first event that is executed  for DL traffic.
+ */
+void StartApplicationDl (Ptr<MyModel> model)
+{
+  model -> SendPacketDl ();
+}
+/*
+ * Function creates a single packet and directly calls the function send
+ * of a device to send the packet to the destination address.
+ * (DL TRAFFIC)
+ */
+void MyModel::SendPacketDl ()
+{
+  Ptr<Packet> pkt = Create<Packet> (m_packetSize,m_periodicity,m_deadline);
+  Ipv4Header ipv4Header;
+  ipv4Header.SetProtocol(Ipv4L3Protocol::PROT_NUMBER);
+  pkt->AddHeader(ipv4Header);
+
+  EpsBearerTag tag (1,1);
+  pkt->AddPacketTag (tag);
+
+  m_device->Send (pkt, m_addr, Ipv4L3Protocol::PROT_NUMBER);
+  NS_LOG_INFO ("Sending DL");
+
+  if (++m_packetsSent < m_nPackets)
+  {
+      ScheduleTxDl();
+  }
+}
+/*
+ * SendPacket creates the packet at tNext time instant.
  */
 
+void MyModel::ScheduleTxDl ()
+{
+  if (m_running)
+    {
+      Time tNext = MilliSeconds(2);
+      m_sendEvent = Simulator::Schedule (tNext, &MyModel::SendPacketDl, this);
+    }
+}
+
+
+/*
+ * This is the first event that is executed  for UL traffic.
+ */
 void StartApplicationUl (Ptr<MyModel> model)
 {
   model -> SendPacketUl ();
 }
-
 /*
  * Function creates a single packet and directly calls the function send
  * of a device to send the packet to the destination address.
- * @param device Device that will send the packet to the destination address.
- * @param addr Destination address for a packet.
- * @param packetSize The packet size.
+ * (UL TRAFFIC)
  */
 void MyModel::SendPacketUl ()
 {
@@ -179,7 +224,7 @@ void MyModel::ScheduleTxUl (uint8_t period)
     }
 }
 
-void MyModel::ScheduleTxUl_Configuration (void) //configuration period
+void MyModel::ScheduleTxUl_Configuration (void)
 {
     uint8_t configurationTime = 60;
     Time tNext = MilliSeconds(configurationTime);
@@ -224,7 +269,7 @@ ConnectUlPdcpRlcTraces ()
 int
 main (int argc, char *argv[]){
     uint16_t numerologyBwp1 = 1;
-    uint32_t udpPacketSize = 10;
+    uint32_t packetSize = 10;
     double centralFrequencyBand1 = 3550e6;
     double bandwidthBand1 = 20e6;
     uint8_t period = uint8_t(10);
@@ -233,7 +278,7 @@ main (int argc, char *argv[]){
     uint16_t ueNumPergNb = 15;
 
     bool enableUl = true;
-    uint32_t nPackets = 100;
+    uint32_t nPackets = 1000;
     Time sendPacketTime = Seconds(0.2);
     uint8_t sch = 2;
 
@@ -251,7 +296,7 @@ main (int argc, char *argv[]){
                   bandwidthBand1);
     cmd.AddValue ("packetSize",
                   "packet size in bytes",
-                   udpPacketSize);
+                   packetSize);
     cmd.AddValue ("enableUl",
                   "Enable Uplink",
                   enableUl);
@@ -276,7 +321,7 @@ main (int argc, char *argv[]){
             std::cout << val << std::endl;
 
     std::cout << "Packet values: " << '\n';
-    v_packet = std::vector<uint32_t> (ueNumPergNb,{udpPacketSize});
+    v_packet = std::vector<uint32_t> (ueNumPergNb,{packetSize});
     for (int val : v_packet)
             std::cout << val << std::endl;
 
@@ -453,6 +498,7 @@ main (int argc, char *argv[]){
     Ipv4InterfaceContainer ueIpIface;
     ueIpIface = epcHelper->AssignUeIpv4Address (NetDeviceContainer (ueNetDev));
 
+    // UL traffic
     std::vector <Ptr<MyModel>> v_modelUl;
     v_modelUl = std::vector<Ptr<MyModel>> (ueNumPergNb,{0});
     for (uint8_t ii=0; ii<ueNumPergNb; ++ii)
@@ -463,6 +509,11 @@ main (int argc, char *argv[]){
         Simulator::Schedule(MicroSeconds(v_init[ii]), &StartApplicationUl, v_modelUl[ii]);
     }
 
+    // DL traffic
+    //Ptr<MyModel> modelDl = CreateObject<MyModel> ();
+    //modelDl -> Setup(enbNetDev.Get(0), ueNetDev.Get(0)->GetAddress(), 10, nPackets, DataRate("1Mbps"),20, uint32_t(100000));
+    //Simulator::Schedule(MicroSeconds(0.099625), &StartApplicationDl, modelDl);
+
 
    // attach UEs to the closest eNB
    nrHelper->AttachToClosestEnb (ueNetDev, enbNetDev);
@@ -470,7 +521,7 @@ main (int argc, char *argv[]){
    nrHelper->EnableTraces();
    Simulator::Schedule (Seconds (0.16), &ConnectUlPdcpRlcTraces);
 
-    Simulator::Stop (Seconds (0.2)); 
+    Simulator::Stop (Seconds (10));
     Simulator::Run ();
 
     std::cout<<"\n FIN. "<<std::endl;
