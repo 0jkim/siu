@@ -427,7 +427,7 @@ NrUeMac::DoReportBufferStatus (LteMacSapProvider::ReportBufferStatusParameters p
       if (m_srState_configuredGrant == INACTIVE_CG)
         {
           NS_LOG_INFO ("INACTIVE -> TO_SEND, bufSize " << GetTotalBufSize ());
-          m_srState_configuredGrant = TO_SEND_CGR;
+          m_srState_configuredGrant = TO_SEND_TrafficInfo;
           if (params.rnti == 4)// Esto lo teno que cambiar, va a ser variable pero por ahroa
               // solo para probar
           {
@@ -1192,11 +1192,11 @@ NrUeMac::DoSlotIndication_configuredGrant (const SfnSf &sfn)
 
   RefreshHarqProcessesPacketBuffer ();
 
-  if (m_srState_configuredGrant == TO_SEND_CGR)
+  if (m_srState_configuredGrant == TO_SEND_TrafficInfo)
     {
       uint32_t bufSr = GetTotalBufSize();
       NS_LOG_INFO ("Sending CGR to PHY in slot " << sfn <<", changes the state"
-                   ": TO_SEND_CGR -> TO_RECEIVE_CG, with bufSr: "<< bufSr);
+                   ": TO_SEND_TrafficInfo -> TO_RECEIVE_CG, with bufSr: "<< bufSr);
       if (Simulator::Now() == m_traffStartTime )
       {
           m_traffStartTime = m_traffStartTime - Simulator::Now();
@@ -1213,7 +1213,7 @@ NrUeMac::DoSlotIndication_configuredGrant (const SfnSf &sfn)
                                 "  DeadlineTime"
                                 <<m_traffDeadlineTime<<'\n';
       // UE MAC sends CGR to PHY in order to send to the gNB
-      SendCGR();
+      SendTrafficInfo();
 
       m_srState_configuredGrant = TO_RECEIVE_CG;
       configuredGrant_state = false;
@@ -1377,7 +1377,7 @@ NrUeMac::GetCG () const
 }
 
 void
-NrUeMac::SendCGR () const
+NrUeMac::SendTrafficInfo () const
 {
   NS_LOG_FUNCTION (this);
 

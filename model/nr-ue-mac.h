@@ -428,7 +428,7 @@ private:
    *
    */
   void ProcessULPacket ();
-  void SendCGR () const;
+  void SendTrafficInfo () const;
 
 private:
 
@@ -543,7 +543,7 @@ private:
   enum SrCgMachine : uint8_t
   {
     INACTIVE_CG,       //!< No SR. initial state
-    TO_SEND_CGR,       //!< We have to send the CGR when possible
+    TO_SEND_TrafficInfo,       //!< We have to send the characteristics of the UEs' traffic when possible
     TO_RECEIVE_CG,     //!< We have to wait until CG is received
     ACTIVE_CG,         //!< The UEs are configured with CG
     SCH_CG_DATA   //!< A new packet is received and the resources are allocated by CG
