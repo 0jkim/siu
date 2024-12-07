@@ -124,6 +124,10 @@ class NrUeMac : public Object
   friend class MacUeMemberPhySapUser;
 
 public:
+  /*
+   * 타임스탬프 용 map 변수 추가
+   */
+  std::unordered_map<uint16_t, uint64_t> ue_mac_Ue_Time_Map;
   /**
    * \brief Get the Type id
    * \return the type id

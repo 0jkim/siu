@@ -16,12 +16,6 @@
  *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
-// tlqkf 1!!!!!!!!!!!!
-// 아진짜
-// dho
-
-
-
 
 #define NS_LOG_APPEND_CONTEXT                                            \
   do                                                                     \
@@ -406,10 +400,15 @@ NrUeMac::DoTransmitPdu (LteMacSapProvider::TransmitPduParameters params)
   m_phySapProvider->SendMacPdu (params.pdu, m_ulDciSfnsf, m_ulDci->m_symStart, params.layer);
 }
 
+/*
+ * 버퍼에 데이터 생성 시간을 저장하는 시점
+ * SR 보내기 전까지 가장 최근 생성된 데이터 기준
+ */
 void
 NrUeMac::DoReportBufferStatus (LteMacSapProvider::ReportBufferStatusParameters params)
 {
   NS_LOG_FUNCTION (this << static_cast<uint32_t> (params.lcid));
+  ue_mac_Ue_Time_Map[params.rnti] = Simulator::Now().GetMilliSeconds(); // 가장 최신 데이터 생성 시점 저장
 
   auto it = m_ulBsrReceived.find (params.lcid);
 
