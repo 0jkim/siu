@@ -30,6 +30,11 @@
  * This code is based on "cttc-3gpp-channel-simple-ran.cc" (5G-LENA) code.
  */
 
+/*
+  * 0jkim
+  * SCI version Code
+*/
+
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
 #include "ns3/mobility-module.h"
@@ -44,7 +49,11 @@
 #include "ns3/log.h"
 #include "ns3/antenna-module.h"
 
-// why ???
+// 패킷 주기 및 크기 랜덤 값 부여를 위한 라이브러리
+#include <random>
+#include <cstdlib>
+#include <ctime>
+
 
 using namespace ns3;
 
@@ -78,7 +87,7 @@ public:
   MyModel ();
   virtual ~MyModel();
 
-  void Setup (Ptr<NetDevice> device, Address address, uint32_t packetSize, uint32_t nPackets, DataRate dataRate, uint8_t period, uint32_t deadline);
+  void Setup (Ptr<NetDevice> device, Address address, uint32_t packetSize, uint32_t nPackets, DataRate dataRate, uint8_t period, uint32_t deadline, bool period_on, uint32_t seed);
 
   // DL
   void SendPacketDl ();
@@ -102,6 +111,8 @@ private:
   uint32_t        m_packetsSent;
   uint8_t         m_periodicity;
   uint32_t        m_deadline;
+  bool m_period_on; // 패킷 생성 주기
+  uint32_t m_seed;  // 랜덤 시드
 };
 
 
@@ -115,7 +126,9 @@ MyModel::MyModel ()
     m_running (false),
     m_packetsSent (0),
     m_periodicity(0),
-    m_deadline(0)
+    m_deadline(0),
+    m_period_on (false),
+    m_seed(0)
 {
 }
 
@@ -125,7 +138,7 @@ MyModel::~MyModel()
 }
 
 
-void MyModel::Setup (Ptr<NetDevice> device, Address address, uint32_t packetSize, uint32_t nPackets, DataRate dataRate, uint8_t period, uint32_t deadline)
+void MyModel::Setup (Ptr<NetDevice> device, Address address, uint32_t packetSize, uint32_t nPackets, DataRate dataRate, uint8_t period, uint32_t deadline, bool period_on,uint32_t seed)
 {
   m_device = device;
   m_packetSize = packetSize;
@@ -135,6 +148,8 @@ void MyModel::Setup (Ptr<NetDevice> device, Address address, uint32_t packetSize
   m_packetsSent = 0;
   m_periodicity = period;
   m_deadline = deadline;
+  m_period_on = period_on;
+  m_seed = seed;
 }
 
 /*
@@ -200,7 +215,7 @@ void MyModel::SendPacketUl ()
   ipv4Header.SetProtocol(Ipv4L3Protocol::PROT_NUMBER);
   pkt->AddHeader(ipv4Header);
 
-  m_device->Send (pkt, m_addr, Ipv4L3Protocol::PROT_NUMBER);
+  m_device->Send (pkt, m_addr, Ipv4L3Protocol::PROT_NUMBER);  // Send로 Mac 계층에 pkt(생성한 패킷)을 보냄
   NS_LOG_INFO ("Sending UL");
 
   if (m_packetsSent==0){
@@ -215,11 +230,28 @@ void MyModel::SendPacketUl ()
  * SendPacket creates the packet at tNext time instant.
  */
 
+/*
+  * 다음 패킷 주기 예약하는 함수
+  * 랜덤 시드값에 따라서 주기 다르게 설정
+*/
 void MyModel::ScheduleTxUl (uint8_t period)
 {
   if (m_running)
     {
-      Time tNext = MilliSeconds(period);
+      Time tNext;
+      if(m_period_on) // 주기 on
+      {
+        tNext = MilliSeconds(period);
+      }
+      else
+      {
+        Ptr<UniformRandomVariable> uniVar = CreateObject<UniformRandomVariable>();
+        uniVar->SetStream(m_seed + m_device->GetNode()->GetId());
+        uniVar->SetAttribute("Min", DoubleValue(10.0)); // 다음 패킷 주기 최소 값 10 ms
+        uniVar->SetAttribute("Max", DoubleValue(5000.0)); // 다음 패킷 주기 최소 값 5000 ms
+        tNext = MilliSeconds(uniVar->GetValue());
+      }
+
       m_sendEvent = Simulator::Schedule (tNext, &MyModel::SendPacketUl, this);
     }
 }
@@ -265,23 +297,22 @@ ConnectUlPdcpRlcTraces ()
   NS_LOG_INFO ("Received PDCP RLC UL");
 }
 
-
 int
 main (int argc, char *argv[]){
-    uint16_t numerologyBwp1 = 1;
-    uint32_t packetSize = 10;
-    double centralFrequencyBand1 = 3550e6;
-    double bandwidthBand1 = 20e6;
-    uint8_t period = uint8_t(10);
+    uint16_t numerologyBwp1 = 0;  // numerology = 0, (mMTC)
+    uint32_t packetSize = 1;  // 랜덤 값으로 변경
+    double centralFrequencyBand1 = 3550e6;  // 중심 주파수
+    double bandwidthBand1 = 1e6;  // 대역폭
+    uint8_t period = uint8_t(1); // 랜덤 값으로 변경
 
-    uint16_t gNbNum = 1;
-    uint16_t ueNumPergNb = 15;
+    uint16_t gNbNum = 1;  // Number of gNB
+    uint16_t ueNumPergNb = 100;  // Number of UE
 
     bool enableUl = true;
-    uint32_t nPackets = 1000;
+    uint32_t nPackets = 250;  // 적절히 수정
     Time sendPacketTime = Seconds(0.2);
-    uint8_t sch = 2;
-
+    uint8_t sch = 1;  // 5G-OFDMA 방식 (Grant-based)
+    double simTime = 60.0;  // 시뮬레이션 시간
     delay = MicroSeconds(10);
 
     CommandLine cmd;
@@ -305,31 +336,65 @@ main (int argc, char *argv[]){
                   sch);
     cmd.Parse (argc, argv);
 
+    /* 
+      * UE 패킷 설정
+
+      * v_init <- 첫 패킷 전송 시간
+      * v_period <- 패킷 전송 주기
+      * v_deadline <- 패킷 전송 마감 시간
+      * v_packet <- 패킷 하나의 크기 (bytes)
+    
+      * seed <- 시드 값 설정  
+        다음 시드 값 설정 시 (number_of UE + 1) ***
+
+      * m_period_on = false 시, 패킷 주기 및 크기는 랜덤 값 
+
+      * select_sch = 0 : Round Robin
+                     1 : Proportional Fair
+                     2 : Greedy
+    */
+    uint32_t seed = 1;  
+    bool period_on = false; // 패킷 주기 on/off
+    int select_sch = 0;
+
     std::vector<uint32_t> v_init(ueNumPergNb);
     std::vector<uint32_t> v_period(ueNumPergNb);
     std::vector<uint32_t> v_deadline(ueNumPergNb);
     std::vector<uint32_t> v_packet(ueNumPergNb);
 
+    for (uint32_t i=0; i<ueNumPergNb;i++)
+    {
+      std::mt19937 gen(seed + i);
+      std::uniform_int_distribution<> distr_packet_size(10, 500); // 패킷 사이즈 10~500 bytes로 할당
+      std::uniform_int_distribution<> distr_init (50000,200000);  // 초기 패킷 생성 시점 랜덤 값 부여
+      std::uniform_int_distribution<> distr_period(10,5000);  // 패킷 생성 주기 랜덤 값 부여 (계속 이 주기로 패킷 생성 예약됨)
+      std::uniform_int_distribution<> distr_deadline(60000000,60000000);  // 패킷 마감 시간 할당
+    
+      v_init[i] = distr_init(gen);
+      v_deadline[i] = distr_deadline(gen);
+      v_packet[i] = distr_packet_size(gen);
+      v_period[i] = distr_period(gen);
+    }
+
+    std::cout<<"\n Packet Traffic Period On -> "<<period_on<<std::endl;
+    
+    if (period_on)
+    {
+      std::cout << "Period values: " << '\n';
+      for (int val : v_period)
+              std::cout << val << "\t";
+    }
+    std::cout << "Packet Size: " << '\n';
+    for (int val : v_packet)
+            std::cout << val << std::endl;
+
     std::cout << "\n Init values: " << '\n';
-    v_init = std::vector<uint32_t> (ueNumPergNb,{100000});
     for (int val : v_init)
             std::cout << val << std::endl;
 
     std::cout << "Deadline values: " << '\n';
-    v_deadline = std::vector<uint32_t> (ueNumPergNb,{10000000});
     for (int val : v_deadline)
             std::cout << val << std::endl;
-
-    std::cout << "Packet values: " << '\n';
-    v_packet = std::vector<uint32_t> (ueNumPergNb,{packetSize});
-    for (int val : v_packet)
-            std::cout << val << std::endl;
-
-    std::cout << "Period values: " << '\n';
-    v_period = std::vector<uint32_t> (ueNumPergNb,{10});
-    for (int val : v_period)
-            std::cout << val << "\t";
-
 
     m_ScenarioFile.open("Scenario.txt", std::ofstream::out | std::ofstream::trunc);
 
@@ -347,7 +412,7 @@ main (int argc, char *argv[]){
 
     int64_t randomStream = 1;
 
-    //Create the scenario
+    // 네트워크 그리드 시나리오
     GridScenarioHelper gridScenario;
     gridScenario.SetRows (1);
     gridScenario.SetColumns (gNbNum);
@@ -355,12 +420,12 @@ main (int argc, char *argv[]){
     gridScenario.SetBsHeight (10.0);
     gridScenario.SetUtHeight (1.5);
 
-    // must be set before BS number
+    // gNB 범위 구성
     gridScenario.SetSectorization (GridScenarioHelper::SINGLE);
     gridScenario.SetBsNumber (gNbNum);
     gridScenario.SetUtNumber (ueNumPergNb * gNbNum);
-    gridScenario.SetScenarioHeight (10);   
-    gridScenario.SetScenarioLength (10);   
+    gridScenario.SetScenarioHeight (10);  // gNB 범위   
+    gridScenario.SetScenarioLength (10);  // gNB 범위
     randomStream += gridScenario.AssignStreams (randomStream);
     gridScenario.CreateScenario ();
 
@@ -372,7 +437,7 @@ main (int argc, char *argv[]){
 
     // Scheduler type: configured grant or grant based
     /* false -> grant based : true -> configured grant */
-    bool scheduler_CG = true;
+    bool scheduler_CG = false;
     uint8_t configurationTime = 60;
 
     nrHelper->SetUeMacAttribute ("CG", BooleanValue (scheduler_CG));
@@ -409,8 +474,17 @@ main (int argc, char *argv[]){
 
     // Select scheduler
     if (sch != 0) 
-    {
-        nrHelper->SetSchedulerTypeId (NrMacSchedulerOfdmaRR::GetTypeId ());
+    {   
+        if (select_sch == 0){
+          nrHelper->SetSchedulerTypeId (NrMacSchedulerOfdmaRR::GetTypeId ());
+        }
+        else if(select_sch == 1){
+          nrHelper->SetSchedulerTypeId (NrMacSchedulerOfdmaPF::GetTypeId ());
+        }
+        // else if(select_sch == 2){
+        //   nrHelper->SetSchedulerTypeId (NrMacSchedulerOfdmaAoIGreedy::GetTypeId ());
+        // }
+
         nrHelper->SetSchedulerAttribute ("schOFDMA", UintegerValue (sch)); // sch = 0 for TDMA
                                                                            // 1 for 5GL-OFDMA
                                                                            // 2 for Sym-OFDMA
@@ -504,7 +578,7 @@ main (int argc, char *argv[]){
     for (uint8_t ii=0; ii<ueNumPergNb; ++ii)
     {
         Ptr<MyModel> modelUl = CreateObject<MyModel> ();
-        modelUl -> Setup(ueNetDev.Get(ii), enbNetDev.Get(0)->GetAddress(), v_packet[ii], nPackets, DataRate("1Mbps"),v_period[ii], v_deadline[ii]);
+        modelUl -> Setup(ueNetDev.Get(ii), enbNetDev.Get(0)->GetAddress(), v_packet[ii], nPackets, DataRate("1Mbps"),v_period[ii], v_deadline[ii],period_on,seed);
         v_modelUl[ii] = modelUl;
         Simulator::Schedule(MicroSeconds(v_init[ii]), &StartApplicationUl, v_modelUl[ii]);
     }
@@ -521,7 +595,7 @@ main (int argc, char *argv[]){
    nrHelper->EnableTraces();
    Simulator::Schedule (Seconds (0.16), &ConnectUlPdcpRlcTraces);
 
-    Simulator::Stop (Seconds (10));
+    Simulator::Stop (Seconds (simTime));
     Simulator::Run ();
 
     std::cout<<"\n FIN. "<<std::endl;
