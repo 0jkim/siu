@@ -231,8 +231,9 @@ void MyModel::SendPacketUl ()
  */
 
 /*
-  * 다음 패킷 주기 예약하는 함수
-  * 랜덤 시드값에 따라서 주기 다르게 설정
+  * 다음 패킷 전송 시간을 예약하는 함수
+  * 랜덤 시드값에 따라서 패킷 보내는 시간 예약을 다르게 설정
+  * UE가 시뮬레이션 시간 내에서 보내는 패킷의 총 개수는 main -> nPackets이며, 각 패킷에게 랜덤한 다음 패킷 전송 시간을 스케줄하는 것이다.
 */
 void MyModel::ScheduleTxUl (uint8_t period)
 {
@@ -306,7 +307,7 @@ main (int argc, char *argv[]){
     uint8_t period = uint8_t(1); // 랜덤 값으로 변경
 
     uint16_t gNbNum = 1;  // Number of gNB
-    uint16_t ueNumPergNb = 100;  // Number of UE
+    uint16_t ueNumPergNb = 15;  // Number of UE
 
     bool enableUl = true;
     uint32_t nPackets = 250;  // 적절히 수정
@@ -355,14 +356,14 @@ main (int argc, char *argv[]){
     */
     uint32_t seed = 1;  
     bool period_on = false; // 패킷 주기 on/off
-    int select_sch = 0;
+    int select_sch = 0; // 스케줄링 알고리즘 선택 0:RR, 1:PF, 2:Greedy
 
     std::vector<uint32_t> v_init(ueNumPergNb);
     std::vector<uint32_t> v_period(ueNumPergNb);
     std::vector<uint32_t> v_deadline(ueNumPergNb);
     std::vector<uint32_t> v_packet(ueNumPergNb);
 
-    for (uint32_t i=0; i<ueNumPergNb;i++)
+    for (uint32_t i=0; i<ueNumPergNb;i++) // setup 메서드로 UE의 패킷 시나리오 파라미터 구축
     {
       std::mt19937 gen(seed + i);
       std::uniform_int_distribution<> distr_packet_size(10, 500); // 패킷 사이즈 10~500 bytes로 할당
