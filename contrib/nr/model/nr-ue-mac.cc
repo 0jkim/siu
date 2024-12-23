@@ -408,7 +408,7 @@ void
 NrUeMac::DoReportBufferStatus (LteMacSapProvider::ReportBufferStatusParameters params)
 {
   NS_LOG_FUNCTION (this << static_cast<uint32_t> (params.lcid));
-  ue_mac_Ue_Time_Map[params.rnti] = Simulator::Now().GetMilliSeconds(); // 가장 최신 데이터 생성 시점 저장
+  ue_mac_Packet_Ctime_Map[params.rnti] = Simulator::Now().GetMilliSeconds(); // 각 UE의 SR 보내기 전까지의 가장 최신 패킷 생성 시점을 기록 (Send SR에서 사용)
 
   auto it = m_ulBsrReceived.find (params.lcid);
 
@@ -452,7 +452,7 @@ NrUeMac::DoReportBufferStatus (LteMacSapProvider::ReportBufferStatusParameters p
           m_srState_configuredGrant = SCH_CG_DATA; //If we have a new packet, we are not going to call to SR.
         }
     }
-  else
+  else  // 여기서 BSR을 보냄
     {
       if (m_srState == INACTIVE)
         {
@@ -614,6 +614,15 @@ NrUeMac::SendSR () const
   Ptr<NrSRMessage> msg = Create<NrSRMessage> ();
   msg->SetSourceBwp (GetBwpId ());
   msg->SetRNTI (m_rnti);
+
+  /*
+   * Nr-Control-Message파일에 SetLastPacketCreationTime을 구현했음
+   * 이곳에서 SRMessage에 패킷 생성 시간 정보를 함께 추가하여 gNB에 보냄
+   * gNB에서는 GetLastPacketCretionTime으로 패킷 생성시간을 가져오면 됨
+   * 또한, SendSR 메서드가 const로 선언되어 있는 것 때문에 public에서 선언한 ue_mac_Packet_Ctime_Map이 const로 취급됨
+   * 따라서 at을 추가해서 예외적으로 처리하도록 함. 추후 문제가 생긴다면 이곳에서 문제 해결
+   */
+  msg->SetLastPacketCreationTime(ue_mac_Packet_Ctime_Map.at(m_rnti)); 
 
   m_macTxedCtrlMsgsTrace (m_currentSlot, GetCellId (), m_rnti, GetBwpId (), msg);
   m_phySapProvider->SendControlMessage (msg);
