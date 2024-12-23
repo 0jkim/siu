@@ -142,8 +142,21 @@ public:
    */
   uint16_t GetRNTI (void) const;
 
+  /*
+   * UE-MAC에서 SR을 보낼때 Control Message에 패킷 생성시간을 함께 담기 위해서 멤버 변수 및 메서드 구현
+   */
+  void SetLastPacketCreationTime (uint64_t time)
+  {
+    m_last_packet_creation_time = time;
+  }
+  uint64_t GetLastPacketCreationTime(void) const
+  {
+    return m_last_packet_creation_time;
+  }
+
 private:
   uint16_t m_rnti {0}; //!< RNTI
+  uint64_t m_last_packet_creation_time{0};  // 패킷 생성시간 저장할 멤버 변수
 };
 
 /**
