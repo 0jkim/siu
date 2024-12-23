@@ -39,6 +39,17 @@ class NrControlMessage;
 class NrRarMessage;
 class BeamConfId;
 
+/*
+ * gNB(스케줄러)에서 관리하는 UE의 정보를 담아놓은 구조체 선언
+ */
+struct UeInfo
+{
+  uint64_t info_lastPacketCreationTime; // SR 메시지에 포함되어 있는 패킷 생성 시간을 저장하는 변수
+  uint64_t info_before_scheduling_time; // 스케줄러에게 파라미터를 보내는 시점이 저장되는 변수
+  uint64_t info_current_aoi;  // 스케줄러가 파라미터로 사용할 AoI를 저장하는 변수
+  uint32_t info_wma=1;  // 데이터 전송 성공에 대한 카운트 수치 (gNB용)
+  bool info_last_transmission_successful; // 이전 데이터 전송 성공 여부를 판단하기 위한 변수
+};
 /**
  * \ingroup gnb-mac
  * \brief The MAC class for the gnb
@@ -258,6 +269,8 @@ public:
 
   void SetConfigurationTime (uint8_t configurationTime);
   uint8_t GetConfigurationTime () const;
+
+  std::unordered_map<uint16_t, UeInfo> gnb_mac_ueinfo;  // 각 UE(rnti)마다 관리되는 UeInfo map 변수
 protected:
   /**
    * \brief DoDispose method inherited from Object

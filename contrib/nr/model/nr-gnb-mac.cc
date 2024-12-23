@@ -1035,10 +1035,30 @@ NrGnbMac::DoReceiveControlMessage  (Ptr<NrControlMessage> msg)
         m_ccmMacSapUser-> UlReceiveCgr (cgr->GetRNTI (), GetBwpId (), cgr->GetBufSize(), cgr->GetLCID(), cgr->GetTrafficP(), cgr->GetTrafficTimeInit(), cgr->GetTrafficDeadline());
         break;
       }
-    case (NrControlMessage::SR):
+    /*
+     * UE-MAC에서 보낸 SR 메시지를 수신하는 부분
+     * NrControlMessage의 NrSRMessage에 Packet 생성 정보를 추가했으므로 gNB용으로 추가 관리
+     * gnb-mac.h에 멤버변수로 관리함 ()
+     */
+    case (NrControlMessage::SR):  
       {
         // Report it to the CCM. Then he will call the right MAC
         Ptr<NrSRMessage> sr = DynamicCast<NrSRMessage> (msg);
+         
+        /*
+         * 1. rnti 가져오기
+         * 2. NrSrMessage에서 PacketCreationTime 불러오기
+         * 3. 각 UE별로 관리하는 UeInfo 구조체에 값 저장
+         * 4. 현재 시점과 패킷 생성시간의 차이로 스케줄러가 사용할 AoI 파라미터를 계산
+         */
+        uint16_t rnti = sr->GetRNTI();  // rnti 가져옴
+        uint64_t m_lastPacketCreationTime = sr->GetLastPacketCreationTime();  // NrSrMessage에서 패킷 생성시간 추출
+        auto &m_UeInfo = gnb_mac_ueinfo[rnti];  // 각 UE의 ueinfo를 auto 키워드로 불러옴
+        m_UeInfo.info_lastPacketCreationTime = m_lastPacketCreationTime;  // 각 UE의 패킷 생성 시점을 저장함
+        m_UeInfo.info_before_scheduling_time = Simulator::Now().GetMilliSeconds();  // 현재 시점을 저장
+        // 스케줄러가 사용할 AoI 파라미터 = 현재 시점 - 패킷 생성 시간
+        m_UeInfo.info_current_aoi = m_UeInfo.info_before_scheduling_time - m_UeInfo.info_lastPacketCreationTime;
+        
         m_ccmMacSapUser->UlReceiveSr (sr->GetRNTI (), GetBwpId ());
         break;
       }
