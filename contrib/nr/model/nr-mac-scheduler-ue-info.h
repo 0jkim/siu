@@ -63,6 +63,14 @@ class NrMacSchedulerUeInfo
 {
 public:
   /**
+   * ofdma-greedy에서 rnti를 가져오기 위한 메서드
+   */
+  uint16_t GetRnti () const
+  {
+    return m_rnti;
+  }
+
+  /**
    * \brief Default Constructor (deleted)
    */
   NrMacSchedulerUeInfo () = delete;

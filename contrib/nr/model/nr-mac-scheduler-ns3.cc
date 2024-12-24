@@ -1990,7 +1990,7 @@ NrMacSchedulerNs3::ScheduleUl (const NrMacSchedSapProvider::SchedUlTriggerReqPar
 
   NS_LOG_INFO ("Total DCI for UL : " << ulSlot.m_slotAllocInfo.m_varTtiAllocInfo.size () <<
                " including UL CTRL");
-  m_macSchedSapUser->SchedConfigInd (ulSlot);
+  m_macSchedSapUser->SchedConfigInd (ulSlot); // 상향링크 스케줄링이 마무리 되면 gnb-mac으로 돌아감
 }
 
 /**
@@ -2598,6 +2598,10 @@ NrMacSchedulerNs3::DoSchedUlTriggerReq (const NrMacSchedSapProvider::SchedUlTrig
  *
  * m_srList will be evaluated in DoScheduleUlSr()
  */
+/**
+ * gNB가 SR 정보를 스케줄러에게 전달할 때 AoI, WMA도 함께 params에 전달함
+ * nr-mac-scheduler-ns3에서 그 파라미터 값을 저장해서 ofdma의 자원할당에서 사용할 수 있음
+ */
 void
 NrMacSchedulerNs3::DoSchedUlSrInfoReq (const NrMacSchedSapProvider::SchedUlSrInfoReqParameters &params)
 {
@@ -2605,8 +2609,15 @@ NrMacSchedulerNs3::DoSchedUlSrInfoReq (const NrMacSchedSapProvider::SchedUlSrInf
 
   // Merge RNTI in our current list
   for (const auto & ue : params.m_srList)
-    {
+    { 
       NS_LOG_INFO ("UE " << ue << " asked for a SR ");
+
+      // params(SchedUlSrInfo)에 있는 값을 ns3용 AoI, WMA 저장 맵 변수에 저장
+      if (params.sched_sap_aoi_map.find(ue) != params.sched_sap_aoi_map.end())
+      {
+        ns3_AoI_map[ue] = params.sched_sap_aoi_map.at(ue);
+        ns3_WMA_map[ue] = params.sched_sap_wma_map.at(ue);
+      }
 
       auto it = std::find (m_srList.begin(), m_srList.end(), ue);
       if (it == m_srList.end())

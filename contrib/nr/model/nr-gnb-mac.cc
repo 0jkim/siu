@@ -276,6 +276,9 @@ NrMacMemberMacSchedSapUser::NrMacMemberMacSchedSapUser (NrGnbMac* mac)
   //  Some blank spaces
 }
 
+/**
+ * 상향링크 스케줄링을 마치고 돌아오는 곳
+ */
 void
 NrMacMemberMacSchedSapUser::SchedConfigInd (const struct SchedConfigIndParameters& params)
 {
@@ -1231,6 +1234,9 @@ NrGnbMac::SendRar (const std::vector <BuildRarListElement_s> &rarList)
 
 }
 
+/**
+ * 스케줄링 이후 작업 수행
+ */
 void
 NrGnbMac::DoSchedConfigIndication (NrMacSchedSapUser::SchedConfigIndParameters ind)
 {

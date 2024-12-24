@@ -547,8 +547,38 @@ public:
 
   void SetCG (bool CGSch);
   bool GetCG () const;
-
+  
+  // Grant based 추가
+  uint64_t GetAge (uint16_t UeRnti) const
+  {
+    auto it = ns3_AoI_map.find(UeRnti);
+    if(it != ns3_AoI_map.end())
+    {
+      return it->second;
+    }
+    else
+    {
+      return 0;
+    }
+  }
+  uint32_t GetWMA(uint16_t UeRnti) const
+  {
+    auto it = ns3_WMA_map.find(UeRnti);
+    if(it != ns3_WMA_map.end())
+    {
+      return it->second;
+    }
+    else
+    {
+      return 1;
+    }
+  }
 protected:
+  /**
+   * SR 정보를 보낼 때 함께 보낸 AoI, WMA 파라미터를 저장할 scheduler-ns3용 맵 변수
+   */
+  std::unordered_map<uint16_t, uint64_t> ns3_AoI_map;
+  std::unordered_map<uint16_t, uint32_t> ns3_WMA_map;
   /**
    * \brief Create an UE representation for the scheduler.
    *
