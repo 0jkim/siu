@@ -34,7 +34,6 @@
   * 0jkim
   * SCI version Code
 */
-// 다른 컴퓨터 테스트트
 
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
