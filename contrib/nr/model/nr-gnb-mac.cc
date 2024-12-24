@@ -847,7 +847,7 @@ NrGnbMac::DoSlotUlIndication (const SfnSf &sfnSf, LteNrTddSlotType type)
       m_ulHarqInfoReceived.clear ();
     }
 
-      m_macSchedSapProvider->SchedUlTriggerReq (ulParams);
+      m_macSchedSapProvider->SchedUlTriggerReq (ulParams);  // 상향링크 스케줄링 시작되는 부분
 }
 
 void
