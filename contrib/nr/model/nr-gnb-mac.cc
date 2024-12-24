@@ -658,6 +658,10 @@ NrGnbMac::DoSlotDlIndication (const SfnSf &sfnSf, LteNrTddSlotType type)
   m_macSchedSapProvider->SchedDlTriggerReq (dlParams);
 }
 
+/*
+ * gNB에서 상향링크 스케줄링 프로세스가 수행되는 메서드
+ * 각 슬롯에서 호출됨
+ */
 void
 NrGnbMac::DoSlotUlIndication (const SfnSf &sfnSf, LteNrTddSlotType type)
 {
@@ -673,7 +677,7 @@ NrGnbMac::DoSlotUlIndication (const SfnSf &sfnSf, LteNrTddSlotType type)
     }
   m_ulCqiReceived.clear ();
 
-  if (m_cgScheduling)
+  if (m_cgScheduling) // Congifured Grant
     {
       static bool cgr_configuration = false;
       static SfnSf m_cgr_configuration = SfnSf (0,0,0,sfnSf.GetNumerology ());
@@ -772,6 +776,13 @@ NrGnbMac::DoSlotUlIndication (const SfnSf &sfnSf, LteNrTddSlotType type)
           m_ulCeReceived.erase (m_ulCeReceived.begin (), m_ulCeReceived.end ());
         }
     }
+  /*
+   * Grant based 방식의 DoSlotUlIndication이 수행되는 부분
+   * 스케줄러에게 보내는 파라미터는 SchedUlSrInfoReqParameters
+   * 따라서 해당 헤더파일에 SR을 수신할 때 계산한 AoI 파라미터 및 WMA를 스케줄러에게 보내주어야 함
+   * SrInfo를 스케줄러에게 보내는 프로세스는 nr-mac-scheduler -> nr-mac-scheduler-ns3
+   * params 즉, SchedUlSrInfoReqParameters를 scheduler-ns3까지 가지고 가기 위해서 NrMacSchedSapProvider를 전달 매개체로 사용해야함
+   */
   else
     {
       // Send SR info to the scheduler
@@ -781,7 +792,21 @@ NrGnbMac::DoSlotUlIndication (const SfnSf &sfnSf, LteNrTddSlotType type)
         params.m_srList.insert (params.m_srList.begin(), m_srRntiList.begin (), m_srRntiList.end ());
         m_srRntiList.clear();
 
-        m_macSchedSapProvider->SchedUlSrInfoReq (params);
+        for(const auto & rnti : params.m_srList)  // SR을 보낸 UE의 rnti마다 진행되는 반복문
+        {
+          auto &m_UeInfo = gnb_mac_ueinfo[rnti];  // rnti 별 UeInfo 정보를 m_UeInfo로 가져옴
+          params.sched_sap_aoi_map[rnti] = m_UeInfo.info_current_aoi; // sap 파라미터에 gNB에서 계산한 AoI 파라미터 값을 전달함
+          if(m_UeInfo.info_last_transmission_successful)  // 이전 데이터 전송에 성공한 ue는 wma가 1 증가한다
+          {
+            params.sched_sap_wma_map[rnti] = m_UeInfo.info_wma + 1;
+          }
+          else  // 이전 데이터 전송에 실패한 ue는 wma를 그대로 유지한다
+          {
+            params.sched_sap_wma_map[rnti] = m_UeInfo.info_wma;
+          }
+        }
+        
+        m_macSchedSapProvider->SchedUlSrInfoReq (params); // SchedUlSrInfoReq에 관련 파라미터를 전달하는 부분
 
         for (const auto & v : params.m_srList)
           {

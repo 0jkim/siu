@@ -120,6 +120,8 @@ public:
   {
     SfnSf m_snfSf;                                 //!< SnfSf in which the sr where received
     std::vector<uint16_t> m_srList;                //!< List of RNTI which asked for a SR
+    std::unordered_map<uint16_t, uint64_t> sched_sap_aoi_map; // rnti 별 aoi 파라미터를 전달하는 sched_sap 용 맵 변수
+    std::unordered_map<uint16_t, uint32_t> sched_sap_wma_map; // rnti 별 wma 파라미터를 전달하는 sched_sap 용 맵 변수
   };
 
   /**
