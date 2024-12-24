@@ -639,7 +639,11 @@ NrMacSchedulerOfdma::GetTpc () const
 }
 
 // Configured Grant - New schedulers (Sym-OFDMA and RB-OFDMA)
-
+/**
+ * Grant based 방식이기 때문에 m_schType_OFDMA 1이다
+ * 새로운 스케줄러를 cmake리스트에 추가하고 스케줄링을 수행해야 한다
+ * 새로운 ueinfo, ofdma-scheduler를 만들고 이곳으로 다시 와야함
+ */
 NrMacSchedulerNs3::BeamSymbolMap
 NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl) const
 {
@@ -663,7 +667,11 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
           // Distribute the RBG evenly among UEs of the same beam
           uint32_t beamSym = symPerBeam.at (GetBeamId (el));
           uint32_t rbgAssignable = 1 * beamSym;
-          std::vector<UePtrAndBufferReq> ueVector;
+          /**
+           * ActiveUE의 UePtrAndBufferReq 정보를 ueVector에 저장하여 활용함 
+           * 즉, ueVector의 UePtr에서 사용할 스케줄러의 UeInfo로 매핑되는 것
+           */
+          std::vector<UePtrAndBufferReq> ueVector;  
           FTResources assigned (0,0);
           const std::vector<uint8_t> ulNotchedRBGsMask = GetUlNotchedRbgMask ();
           uint32_t resources = ulNotchedRBGsMask.size () > 0 ? std::count (ulNotchedRBGsMask.begin (),
@@ -676,7 +684,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
               ueVector.emplace_back (ue);
             }
 
-          for (auto & ue : ueVector)
+          for (auto & ue : ueVector)  // 선택한 스케줄러의 UeInfo에서 스케줄링 전에 수행해야할 작업을 이곳에서 수행함
             {
               BeforeUlSched (ue, FTResources (rbgAssignable * beamSym, beamSym));
             }

@@ -1633,6 +1633,9 @@ NrMacSchedulerNs3::DoScheduleDlData (PointInFTPlane *spoint, uint32_t symAvail,
  * Before looping and changing the beam, the starting point should be advanced.
  * How that is done is a matter for the subclasses (method ChangeUlBeam).
  */
+/*
+ * 상향링크 데이터에 대한 자원할당 스케줄링이 수행되는 메서드
+ */
 uint8_t
 NrMacSchedulerNs3::DoScheduleUlData (PointInFTPlane *spoint, uint32_t symAvail,
                                          const ActiveUeMap &activeUl, SlotAllocInfo *slotAlloc) const
@@ -1643,6 +1646,9 @@ NrMacSchedulerNs3::DoScheduleUlData (PointInFTPlane *spoint, uint32_t symAvail,
 
   // This function assigns the number of RBs needed by each UE according to the
   // scheduler that has been chosen (schType_OFDMA and FlexOFDMA are programmed inside this function).
+  /**
+   * AssignULRBG 메서드는 가용 리소스블록(RB)를 각 UE에게 스케줄하는 부분으로 우리는 ofdma 방식을 채택했으므로 ofdma.cc 파일로 이동
+   */
   BeamSymbolMap symPerBeam = AssignULRBG (symAvail, activeUl);
   uint8_t usedSym = 0;
   GetFirst GetBeam;
@@ -2024,6 +2030,9 @@ NrMacSchedulerNs3::ScheduleUl (const NrMacSchedSapProvider::SchedUlTriggerReqPar
  * Please note that the allocation must be done backwards from the last available
  * symbol to respect the final slot composition: DL CTRL, DL Data, UL Data, UL CTRL.
  */
+/*
+ * 실제 ScheduleUl 수행하는 곳
+ */
 uint8_t
 NrMacSchedulerNs3::DoScheduleUl (const std::vector <UlHarqInfo> &ulHarqFeedback,
                                      const SfnSf &ulSfn, SlotAllocInfo *allocInfo,
@@ -2114,10 +2123,16 @@ NrMacSchedulerNs3::DoScheduleUl (const std::vector <UlHarqInfo> &ulHarqFeedback,
      }
     else
      {
-       DoScheduleUlSr (&ulAssignationStartPoint, m_srList);
+       DoScheduleUlSr (&ulAssignationStartPoint, m_srList); // SR 메시지에 의해서 기본 12 바이트 만큼 자원을 할당 (크게 중요X)
       }
      m_srList.clear ();
    }
+
+  /*
+   * 스케줄러를 수행할 ActiveUe를 맵에다가 저장하는데, UE는 기본적으로 NrMacSchedulerUeInfo라는 클래스에서 정보를 주고 받는다
+   * ActiveUeMap은 각 빔에 대해서 UePtrAndBufferReq 정보를 담고있다
+   * UePtrAndBufferReq은 UePtr과 BufferReq로 구성되어 있고 여기서 UePtr은 NrMacSchedulerUeInfo의 shared_ptr이다
+   */
   ActiveUeMap activeUlUe;
   ComputeActiveUe (&activeUlUe, &NrMacSchedulerUeInfo::GetUlLCG,
                    &NrMacSchedulerUeInfo::GetUlHarqVector, "UL");
@@ -2146,6 +2161,9 @@ NrMacSchedulerNs3::DoScheduleUl (const std::vector <UlHarqInfo> &ulHarqFeedback,
         }
     }
 
+  /*
+   * 이제 이곳에서 DoScheduleUlData 메서드를 수행하여 상향링크 데이터에 대한 자원 할당 스케줄링을 진행한다
+   */
   if (ulSymAvail > 0 && activeUlUe.size () > 0)
     {
       uint8_t usedUl = DoScheduleUlData (&ulAssignationStartPoint, ulSymAvail,
@@ -2517,6 +2535,10 @@ NrMacSchedulerNs3::DoSchedDlTriggerReq (const NrMacSchedSapProvider::SchedDlTrig
  * and finally the expired HARQs are canceled (ResetExpiredHARQ).
  *
  * \see ScheduleUl
+ */
+/*
+ * 여기부터 본격적인 상향링크 스케줄링이 시작됨
+ * CQI, HARQ에 대한 파라미터 작업을 수행하고 해당 파라미터들로 ScheduleUl 메서드를 수행함
  */
 void
 NrMacSchedulerNs3::DoSchedUlTriggerReq (const NrMacSchedSapProvider::SchedUlTriggerReqParameters& params)
