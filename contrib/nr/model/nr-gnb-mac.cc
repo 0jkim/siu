@@ -1235,7 +1235,8 @@ NrGnbMac::SendRar (const std::vector <BuildRarListElement_s> &rarList)
 }
 
 /**
- * 스케줄링 이후 작업 수행
+ * 스케줄링 끝내고 돌아오는곳 
+ * 이후 작업 수행
  */
 void
 NrGnbMac::DoSchedConfigIndication (NrMacSchedSapUser::SchedConfigIndParameters ind)
@@ -1358,6 +1359,9 @@ NrGnbMac::DoSchedConfigIndication (NrMacSchedSapUser::SchedConfigIndParameters i
               m_dlScheduling (traceInfo);
             }
         }
+      /**
+       * 이곳에서 상향링크 스케줄링에 대한 DCI 메시지를 전달
+       */
       else if (varTtiAllocInfo.m_dci->m_type != DciInfoElementTdma::CTRL
                && varTtiAllocInfo.m_dci->m_type != DciInfoElementTdma::SRS
                && varTtiAllocInfo.m_dci->m_format == DciInfoElementTdma::UL)
