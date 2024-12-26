@@ -1053,6 +1053,17 @@ void NrGnbMac::PrintFinalAoi()
   std::cout << "시스템 평균 AoI: " << system_average_aoi<< " ms (총 " << total_samples<< " samples 기반)\n";
 }
 
+void NrGnbMac::PrintFinalThroughput()
+{
+  std::cout<< "\nAverage Throughput per Rnti"<<std::endl;
+
+  for (const auto &[rnti, total_bytes]:gnb_mac_rnti_bytes)
+  {
+    double rnti_throughput = (total_bytes * 8.0) / 60.0; // bps (bit per seconds)
+    std::cout<<"Rnti : "<<rnti<<" Throughput : "<<rnti_throughput/1e6 << "Mbps" <<std::endl;
+  }
+}
+
 NrGnbPhySapUser*
 NrGnbMac::GetPhySapUser ()
 {
