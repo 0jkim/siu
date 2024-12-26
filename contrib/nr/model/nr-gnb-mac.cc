@@ -937,6 +937,10 @@ NrGnbMac::DoReportSrToScheduler (uint16_t rnti)
   m_srCallback (GetBwpId (), rnti);
 }
 
+/**
+ * 데이터 수신받는 곳
+ * 패킷의 최종 AoI를 여기서 계산하고 WMA 증가 및 AoI 초기화 진행
+ */
 void
 NrGnbMac::DoReceivePhyPdu (Ptr<Packet> p)
 {
@@ -976,9 +980,22 @@ NrGnbMac::DoReceivePhyPdu (Ptr<Packet> p)
     }
 
   // Ok, we know it is data, so let's extract and pass to RLC.
-
+  /**
+   * macHeader를 떼는 곳과 동시에 시스템 평균 AoI를 위한 AoI 계산 및 초기화
+   * 평균 Throughput 계산을 위해 payload 저장
+   * 데이터 전송이 성공했음을 이곳에서 체크
+   */
   NrMacHeaderVs macHeader;
   p->RemoveHeader (macHeader);
+  uint64_t bytes = p->GetSize();  // payload 계산
+
+  auto &UeInfo = gnb_mac_ueinfo[rnti];
+  uint64_t now = Simulator::Now().GetMilliSeconds();
+  uint64_t final_aoi = now - UeInfo.info_lastPacketCreationTime;  // gNB가 패킷을 최종 수신한 시점과 패킷의 생성시간의 차이로 AoI계산
+  gnb_mac_all_aoi_values.push_back(final_aoi);  // 시스템 평균 AoI 계산 변수에 추가
+  gnb_mac_rnti_bytes[rnti] += bytes;  // gNB에서 각 UE의 패킷이 처리된 것을 추가
+  UeInfo.info_last_transmission_successful = true;
+  UeInfo.info_wma +=1;  // WMA를 다시 파봐야함
 
   auto lcidIt = rntiIt->second.find (macHeader.GetLcId ());
 

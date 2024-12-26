@@ -270,7 +270,12 @@ public:
   void SetConfigurationTime (uint8_t configurationTime);
   uint8_t GetConfigurationTime () const;
 
+  /**
+   * 추가된 변수
+   */
   std::unordered_map<uint16_t, UeInfo> gnb_mac_ueinfo;  // 각 UE(rnti)마다 관리되는 UeInfo map 변수
+  std::vector<uint64_t> gnb_mac_all_aoi_values; // 처리된 모든 AoI를 저장함 -> 평균 AoI 계산에 사용
+  std::map<uint16_t, uint64_t> gnb_mac_rnti_bytes;  // 각 UE가 처리한 바이트 수를 전부 저장 -> 평균 Throughput 계산에 사용
 protected:
   /**
    * \brief DoDispose method inherited from Object
