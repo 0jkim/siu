@@ -480,9 +480,9 @@ main (int argc, char *argv[])
         {
           nrHelper->SetSchedulerTypeId (NrMacSchedulerOfdmaPF::GetTypeId ());
         }
-      // else if(select_sch == 2){
-      //   nrHelper->SetSchedulerTypeId (NrMacSchedulerOfdmaAoIGreedy::GetTypeId ());
-      // }
+      else if(select_sch == 2){
+        nrHelper->SetSchedulerTypeId (NrMacSchedulerOfdmaGreedy::GetTypeId ());
+      }
 
       nrHelper->SetSchedulerAttribute ("schOFDMA", UintegerValue (sch)); // sch = 0 for TDMA
           // 1 for 5GL-OFDMA
