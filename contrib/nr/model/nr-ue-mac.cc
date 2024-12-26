@@ -669,6 +669,12 @@ NrUeMac::RecvRaResponse (BuildRarListElement_s raResponse)
   m_cmacSapUser->NotifyRandomAccessSuccessful ();
 }
 
+/**
+ * 상향링크 DCI 수신 후, 메시지 정보를 바탕으로 상향 링크 데이터 송신하는 곳
+ * 재전송 및 new data 송신 결정을 이곳에서 진행하는 것 같음
+ * 만약, ue의 재전송 송신 부분을 깊게 파야하면 여기로 와야함
+ * 일단 여기서 dci를 받은 ue가 데이터를 송신한다고 인지할 수 있음
+ */
 void
 NrUeMac::ProcessUlDci (const Ptr<NrUlDciMessage> &dciMsg)
 {
@@ -1054,6 +1060,10 @@ NrUeMac::SendNewStatusData()
                    "to send one status PDU...");
 }
 
+/**
+ * 제어 메시지를 gNB로부터 받는 곳
+ * ex)상향 링크 DCI 메시지
+ */
 void
 NrUeMac::DoReceiveControlMessage  (Ptr<NrControlMessage> msg)
 {
@@ -1061,9 +1071,9 @@ NrUeMac::DoReceiveControlMessage  (Ptr<NrControlMessage> msg)
 
   switch (msg->GetMessageType ())
     {
-    case (NrControlMessage::UL_DCI):
+    case (NrControlMessage::UL_DCI):  // 상향링크 DCI 메시지 수신
       {
-        ProcessUlDci (DynamicCast<NrUlDciMessage> (msg));
+        ProcessUlDci (DynamicCast<NrUlDciMessage> (msg)); // 상향링크 데이터 전송 프로세스 트리거
         break;
       }
     case (NrControlMessage::RAR):
