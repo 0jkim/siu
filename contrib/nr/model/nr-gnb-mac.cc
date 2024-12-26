@@ -42,6 +42,7 @@
 #include "beam-id.h"
 
 #include "bwp-manager-gnb.h"
+#include <numeric>
 
 namespace ns3 {
 NS_LOG_COMPONENT_DEFINE ("NrGnbMac");
@@ -993,9 +994,11 @@ NrGnbMac::DoReceivePhyPdu (Ptr<Packet> p)
   uint64_t now = Simulator::Now().GetMilliSeconds();
   uint64_t final_aoi = now - UeInfo.info_lastPacketCreationTime;  // gNB가 패킷을 최종 수신한 시점과 패킷의 생성시간의 차이로 AoI계산
   gnb_mac_all_aoi_values.push_back(final_aoi);  // 시스템 평균 AoI 계산 변수에 추가
-  gnb_mac_rnti_bytes[rnti] += bytes;  // gNB에서 각 UE의 패킷이 처리된 것을 추가
+  gnb_mac_rnti_aoi[rnti].push_back(final_aoi);  // gNB에서 각 UE의 패킷이 처리된 aoi 값 더함
+  gnb_mac_rnti_bytes[rnti] += bytes;  // gNB에서 각 UE의 패킷이 처리한 바이트 더함
   UeInfo.info_last_transmission_successful = true;
   UeInfo.info_wma +=1;  // WMA를 다시 파봐야함
+  gnb_mac_rnti_wma[rnti] = UeInfo.info_wma;
 
   auto lcidIt = rntiIt->second.find (macHeader.GetLcId ());
 
@@ -1008,6 +1011,46 @@ NrGnbMac::DoReceivePhyPdu (Ptr<Packet> p)
     {
       (*lcidIt).second->ReceivePdu (rxParams);
     }
+}
+
+/**
+ * 추가한 메서드
+ * 평균 Aoi 출력
+ * 평균 처리량 출력
+ */
+void NrGnbMac::PrintFinalAoi()
+{
+  uint64_t total_aoi = 0;
+  size_t total_samples = 0;
+  
+  std::cout<<"\n--------------- 각 UE의 평균 aoi ---------------\n";
+
+  for(const auto &[rnti, aoi_list] : gnb_mac_rnti_aoi)
+  {
+    if (aoi_list.empty())
+    {
+      continue;
+    }
+    // UE들의 평균 aoi 계산
+    uint64_t ue_total_aoi = std::accumulate(aoi_list.begin(), aoi_list.end(), 0ULL);
+    double average_aoi = static_cast<double> (ue_total_aoi)/aoi_list.size();
+
+    total_aoi += ue_total_aoi;
+    total_samples += aoi_list.size();
+
+    std::cout << "UE " << rnti << " - 평균 AoI: " << average_aoi << " ms \n";
+  }
+
+  for(const auto &[rnti, aoi_list]:gnb_mac_rnti_aoi)
+  {
+    std::cout << "UE " << rnti << "의 WMA : " << gnb_mac_rnti_wma[rnti] << std::endl;
+  }
+
+  double system_average_aoi = static_cast<double> (total_aoi) / total_samples;
+
+  // 최종 출력
+  std::cout << "\n--- 최종 결과 ---\n";
+  std::cout << "시스템 평균 AoI: " << system_average_aoi<< " ms (총 " << total_samples<< " samples 기반)\n";
 }
 
 NrGnbPhySapUser*
