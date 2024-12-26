@@ -601,6 +601,14 @@ main (int argc, char *argv[])
   nrHelper->EnableTraces ();
   Simulator::Schedule (Seconds (0.16), &ConnectUlPdcpRlcTraces);
 
+  /**
+   * 시뮬레이션 종료되기 직전에 평균 AoI 출력 및 평균 처리량 출력 스케줄
+   */
+  Ptr<NrGnbMac> gnbMac = DynamicCast<NrGnbMac> (enbNetDev.Get(0)->GetObject<NrGnbNetDevice> () -> GetMac (0));  // gNB 객체 포인터
+  
+  Simulator::Schedule(Seconds(simTime) - NanoSeconds(1), &NrGnbMac::PrintFinalAoi, gnbMac);
+  Simulator::Schedule(Seconds(simTime) - NanoSeconds(2), &NrGnbMac::PrintFinalThroughput, gnbMac);
+
   Simulator::Stop (Seconds (simTime));
   Simulator::Run ();
 
