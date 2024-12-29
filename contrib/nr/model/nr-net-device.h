@@ -83,7 +83,9 @@ public:
 
 protected:
   virtual void DoDispose (void);
-
+  // 현재 lena 버전에는 drop trace가 없고 최신 master lena에는 있음
+  // 데이터 드랍에 따른 aoi를 추출할 때, 기존 코드의 오류 발생율에 따른 aoi를 어떻게 시각화 할지 고민해봐야함 . . .
+  // 자칫하면 코드를 엎어야할 수도 있다
   NetDevice::ReceiveCallback m_rxCallback;
   virtual bool DoSend (Ptr<Packet> packet, const Address& dest, uint16_t protocolNumber) = 0;
 
